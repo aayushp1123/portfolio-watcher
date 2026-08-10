@@ -4,6 +4,7 @@ import { Pill } from "@/components/ui/Pill";
 
 const riskTone = { Low: "good", Medium: "warn", High: "crit" } as const;
 const exitTone = { ok: "neutral", approaching: "warn", triggered: "crit", none: "neutral" } as const;
+const ratingTone = { Buy: "good", Hold: "warn", Sell: "crit" } as const;
 
 export function DailyDigestView({ report }: { report: DailyDigest }) {
   return (
@@ -46,6 +47,7 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
                   {h.exitRuleStatus && h.exitRuleStatus.status !== "none" && (
                     <Pill tone={exitTone[h.exitRuleStatus.status]}>{h.exitRuleStatus.status}</Pill>
                   )}
+                  <Pill tone={ratingTone[h.rating]}>{h.rating}</Pill>
                   <Pill tone={riskTone[h.riskRating]}>{h.riskRating} risk</Pill>
                 </div>
               </div>
@@ -59,6 +61,7 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
                   </span>
                 )}
               </p>
+              <p className="mt-1 text-sm text-ink-700">{h.ratingReason}</p>
               <p className="mt-1 text-sm text-ink-500">{h.riskReason}</p>
               {h.exitRuleStatus && h.exitRuleStatus.status !== "none" && (
                 <p className="mt-1 text-sm text-ink-700">{h.exitRuleStatus.message}</p>

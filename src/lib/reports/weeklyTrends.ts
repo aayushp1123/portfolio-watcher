@@ -17,6 +17,8 @@ NEW IDEAS: Suggest 3-5 stock or ETF candidates worth researching further, ideall
 
 RISK RATING METHODOLOGY: Low/Medium/High for every candidate, based on (a) volatility/beta, (b) balance sheet health, (c) concentration/political exposure, (d) valuation risk, (e) maturity/track record — newer or unprofitable companies carry more risk even with an exciting growth story.
 
+RATING METHODOLOGY (Buy/Hold/Sell, required for every candidate): Search for the current professional analyst consensus for the ticker from reputable aggregators (Yahoo Finance "Analyst Ratings", TipRanks consensus, Zacks Rank, MarketWatch analyst ratings, WSJ Markets, or Morningstar star rating) — this reflects institutional/accredited-investor opinion. Combine that consensus with your own DEPTH REQUIREMENT reasoning above to land on exactly one of Buy/Hold/Sell, plus a single tight sentence of rationale in ratingReason. If a candidate has thin or no analyst coverage, say so explicitly in ratingReason instead of inventing a consensus. This is a synthesis of public professional opinion for informational purposes, not personalized financial advice.
+
 Return ONLY the structured JSON matching the provided schema — no other text. This is NOT financial advice; frame everything as "worth researching further."`;
 
 function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>): string {
@@ -74,7 +76,7 @@ export async function generateWeeklyTrends(userId: string): Promise<{ skipped: t
     data: {
       userId,
       type: "WEEKLY_TRENDS",
-      schemaVersion: 1,
+      schemaVersion: 2,
       content: JSON.stringify(report),
       model,
       inputTokens: response.usage.input_tokens,

@@ -13,6 +13,8 @@ DEPTH REQUIREMENT (critical): Before writing any risk rating or bottom line, act
 
 RISK RATING METHODOLOGY: Low/Medium/High for every holding, based on (a) volatility/beta, (b) balance sheet health, (c) concentration/political exposure, (d) valuation risk. For ETFs, factor in diversification but still flag sector concentration.
 
+RATING METHODOLOGY (Buy/Hold/Sell, required for every holding): Search for the current professional analyst consensus for the ticker from reputable aggregators (Yahoo Finance "Analyst Ratings", TipRanks consensus, Zacks Rank, MarketWatch analyst ratings, WSJ Markets, or Morningstar star rating) — this reflects institutional/accredited-investor opinion. Combine that consensus with your own DEPTH REQUIREMENT reasoning above and this user's specific exit rules and cost basis to land on exactly one of Buy/Hold/Sell, plus a single tight sentence of rationale in ratingReason (e.g. "Street consensus is 8 Buy/2 Hold, and it's still ~30% below its trailing-stop trigger."). If analyst consensus and your own read genuinely conflict, say so briefly in ratingReason rather than silently picking one. This is a synthesis of public professional opinion for informational purposes, not personalized financial advice.
+
 EXIT RULES: For each holding with an active exit rule, determine its status:
 - PRICE_TARGET: status is "triggered" if current price >= target value, "approaching" if within 5%, else "ok".
 - TRAILING_STOP_PCT: find the holding's approximate highest price since it was likely acquired (use available price history), compute the stop level as (value)% below that peak; "triggered" if current price is at/below the stop, "approaching" if within 5% of it, else "ok".
@@ -92,7 +94,7 @@ export async function generateDailyDigest(userId: string): Promise<{ skipped: tr
     data: {
       userId,
       type: "DAILY_DIGEST",
-      schemaVersion: 1,
+      schemaVersion: 2,
       content: JSON.stringify(report),
       model,
       inputTokens: response.usage.input_tokens,

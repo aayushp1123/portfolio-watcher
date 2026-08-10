@@ -23,6 +23,9 @@ export const sampleDailyDigest: DailyDigest = {
       riskRating: "Low",
       riskReason:
         "A fund that owns all 500 companies in the S&P 500, so no single company's bad news can sink it. Low volatility and a long track record.",
+      rating: "Buy",
+      ratingReason:
+        "Broad analyst consensus treats S&P 500 index exposure as a core long-term holding, and it's compounding steadily with no rule attached.",
       taxNote: null,
     },
     {
@@ -39,6 +42,9 @@ export const sampleDailyDigest: DailyDigest = {
       riskRating: "Medium",
       riskReason:
         "A renewable-energy company, so it's more sensitive to interest rates and clean-energy policy than a broad index fund, but it pays a steady dividend and has an investment-grade balance sheet.",
+      rating: "Hold",
+      ratingReason:
+        "Analyst consensus is mixed-to-positive; still well below your $40 exit target, so there's no reason to act yet either direction.",
       taxNote:
         "You've held this over a year, so a sale today would qualify for the lower long-term capital gains tax rate instead of the higher short-term rate.",
     },
@@ -52,6 +58,9 @@ export const sampleDailyDigest: DailyDigest = {
       riskRating: "High",
       riskReason:
         "A newer online bank without decades of history through a full economic cycle. Its stock price swings more than established banks, and profitability is still proving out.",
+      rating: "Hold",
+      ratingReason:
+        "Street coverage is split on the growth-vs-profitability story; the position is inside its target band, so this is a watch, not a trade.",
       taxNote:
         "This position is currently at a loss. If you sell, avoid buying it back within 30 days — doing so would trigger the 'wash sale' rule and disallow the tax loss.",
     },
@@ -64,6 +73,8 @@ export const sampleDailyDigest: DailyDigest = {
       exitRuleStatus: null,
       riskRating: "Low",
       riskReason: "Uninvested cash sitting in the brokerage account, earning a small amount of interest.",
+      rating: "Hold",
+      ratingReason: "Cash isn't a rated security — kept as Hold since there's no buy/sell decision to make on it.",
       taxNote: null,
     },
   ],
@@ -113,6 +124,9 @@ export const sampleWeeklyTrends: WeeklyTrends = {
       riskRating: "Low",
       riskReason:
         "Diversified across ~100 established, profitable companies with long dividend histories. Moves less than the broad market in downturns, historically.",
+      rating: "Buy",
+      ratingReason:
+        "Widely favored by dividend-focused analysts as a core holding; would round out this portfolio's income exposure without adding single-stock risk.",
       bucket: "CORE_ETF",
       horizon: "long-term",
       sourceUrls: [],
@@ -126,6 +140,9 @@ export const sampleWeeklyTrends: WeeklyTrends = {
       riskRating: "High",
       riskReason:
         "Smaller company in a competitive category dominated by giants; results can swing sharply on a single earnings report. Best sized small if used at all.",
+      rating: "Hold",
+      ratingReason:
+        "Analyst opinion is divided post-pullback — worth watching for a clearer trend before treating it as a buy.",
       bucket: "SPECULATIVE",
       horizon: "short-term",
       sourceUrls: [],

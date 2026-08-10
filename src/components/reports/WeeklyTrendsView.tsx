@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
 
 const riskTone = { Low: "good", Medium: "warn", High: "crit" } as const;
+const ratingTone = { Buy: "good", Hold: "warn", Sell: "crit" } as const;
 const bucketLabel = {
   CORE_ETF: "Core ETF",
   INDIVIDUAL_GROWTH: "Individual Growth",
@@ -68,11 +69,13 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
                 </span>
                 <div className="flex items-center gap-2">
                   <Pill tone="neutral">{bucketLabel[idea.bucket]}</Pill>
+                  <Pill tone={ratingTone[idea.rating]}>{idea.rating}</Pill>
                   <Pill tone={riskTone[idea.riskRating]}>{idea.riskRating} risk</Pill>
                 </div>
               </div>
               <p className="mt-2 text-sm text-ink-700">{idea.whatItDoes}</p>
               <p className="mt-1 text-sm text-ink-500">{idea.whyNow}</p>
+              <p className="mt-1 text-sm text-ink-700">{idea.ratingReason}</p>
               <p className="mt-1 text-xs text-ink-500">
                 {idea.horizon === "long-term" ? "Long-term hold" : "Shorter-term / opportunistic"}
               </p>

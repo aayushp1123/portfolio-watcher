@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const riskToneSchema = z.enum(["Low", "Medium", "High"]);
 
+export const ratingSchema = z.enum(["Buy", "Hold", "Sell"]);
+
 export const holdingSchema = z.object({
   ticker: z.string(),
   shares: z.number(),
@@ -16,6 +18,8 @@ export const holdingSchema = z.object({
     .nullable(),
   riskRating: riskToneSchema,
   riskReason: z.string(),
+  rating: ratingSchema,
+  ratingReason: z.string(),
   taxNote: z.string().nullable(),
 });
 
@@ -38,6 +42,8 @@ export const newIdeaSchema = z.object({
   whyNow: z.string(),
   riskRating: riskToneSchema,
   riskReason: z.string(),
+  rating: ratingSchema,
+  ratingReason: z.string(),
   bucket: z.enum(["CORE_ETF", "INDIVIDUAL_GROWTH", "SPECULATIVE"]),
   horizon: z.enum(["long-term", "short-term"]),
   sourceUrls: z.array(z.string()),
