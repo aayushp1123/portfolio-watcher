@@ -39,3 +39,14 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+/src/generated/prisma
+
+# local dev database (no longer used — production uses Postgres)
+dev.db
+dev.db-journal
+
+# local AI tool configs
+.agents/
+.windsurf/
+.claude/settings.local*.json

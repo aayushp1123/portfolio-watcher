@@ -1,0 +1,93 @@
+// Prisma schema for Portfolio Watcher
+// learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id             String      @id @default(cuid())
+  email          String      @unique
+  hashedPassword String
+  name           String?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  goal           Goal?
+  exitRules      ExitRule[]
+  plaidItems     PlaidItem[]
+  reports        Report[]
+}
+
+model Goal {
+  id                   String   @id @default(cuid())
+  userId               String   @unique
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetCoreEtfPct     Float
+  targetGrowthPct      Float
+  targetSpeculativePct Float
+  notes                String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+enum ExitRuleType {
+  PRICE_TARGET
+  TRAILING_STOP_PCT
+  STOP_LOSS_PRICE
+}
+
+model ExitRule {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticker    String
+  ruleType  ExitRuleType
+  value     Float
+  note      String?
+  active    Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([userId, ticker])
+}
+
+model PlaidItem {
+  id                   String    @id @default(cuid())
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plaidItemId          String    @unique
+  encryptedAccessToken String
+  institutionName      String?
+  status               String    @default("active") // active | login_required | error
+  lastHoldingsJson     String?
+  lastSyncedAt         DateTime?
+  createdAt            DateTime  @default(now())
+}
+
+enum ReportType {
+  DAILY_DIGEST
+  WEEKLY_TRENDS
+  BREAKING_NEWS
+}
+
+model Report {
+  id                String     @id @default(cuid())
+  userId            String
+  user              User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              ReportType
+  schemaVersion     Int        @default(1)
+  content           String // JSON-stringified structured report
+  hasMaterialEvents Boolean    @default(true) // BREAKING_NEWS only
+  model             String
+  inputTokens       Int?
+  outputTokens      Int?
+  generatedAt       DateTime   @default(now())
+
+  @@index([userId, type, generatedAt])
+}

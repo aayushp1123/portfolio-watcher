@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Portfolio Watcher
 
-## Getting Started
+A personal investing command center: create an account, connect a brokerage
+account, set your goals, and get AI-researched Daily Digest, Weekly Trends,
+and Breaking News reports — built for you specifically, not hardcoded.
 
-First, run the development server:
+## Cost — read this first
+
+**Everything in this app is free by default and stays that way until you
+personally add paid credentials.** Two features are gated behind your own
+keys and are visibly disabled (not broken) until you add them:
+
+| Feature | Requires | Cost |
+|---|---|---|
+| Connecting a brokerage account | Free Plaid Sandbox signup | $0 forever (Sandbox has no billing) |
+| AI-generated reports + the auto-scheduler | Your own Anthropic API key | Pay-per-use — the one real cost |
+
+Everything else — signup/login, goals, exit rules, the whole dashboard UI —
+works fully with **zero keys of any kind**.
+
+## Setup
 
 ```bash
+npm install
+# .env already exists with NEXTAUTH_SECRET and PLAID_TOKEN_ENCRYPTION_KEY
+# pre-generated locally — no external signup needed for those two.
+npx prisma migrate dev # only needed if you delete dev.db and start fresh
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open the URL the terminal prints (usually http://localhost:3000, or the
+next free port if 3000 is taken).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Enabling brokerage linking (free)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Sign up at https://dashboard.plaid.com/signup — instant, Sandbox keys are free.
+2. Add `PLAID_CLIENT_ID` and `PLAID_SECRET` to `.env`.
+3. Restart the dev server. The "Connect Brokerage Account" button activates.
+4. In the Plaid Sandbox popup, pick any institution and log in with
+   username `user_good` / password `pass_good`.
 
-## Learn More
+### Enabling AI reports (the one real cost)
 
-To learn more about Next.js, take a look at the following resources:
+1. Get a key at https://console.anthropic.com.
+2. Add `ANTHROPIC_API_KEY` to `.env`.
+3. Restart the dev server. The "Generate Report" buttons activate and the
+   background scheduler starts (check the terminal log for confirmation —
+   it prints the cron schedule it registered).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+You can enable either feature independently, in either order, whenever
+you're ready — nothing else in the app depends on them.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## What's here
 
-## Deploy on Vercel
+- **Auth**: email/password signup and login (NextAuth, bcrypt-hashed passwords).
+- **Onboarding**: set a target allocation, optionally connect a brokerage account.
+- **Dashboard**: Daily Digest (holdings, exit rules, risk ratings, tax notes),
+  Weekly Trends (allocation check, new stock ideas), Breaking News (quiet
+  unless something material happened).
+- **Settings**: edit your goal, manage exit rules (price target / trailing
+  stop / stop-loss per ticker), see connected accounts and setup status.
+- **Scheduler**: once an API key is added, reports also generate automatically
+  on a schedule (`CRON_*` env vars) — but only while the dev/prod server
+  process stays running; there's no external cron infra, by design.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Known limitations
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Plaid Sandbox gives you realistic *fake* holdings data, not your real
+  brokerage account — real (production) Plaid access is a separate, harder
+  step not covered here.
+- The scheduler only fires while this process is running — no catch-up on
+  missed runs if your laptop sleeps or the server isn't up.
+- This is a personal project, not an audited fintech product. AI-generated
+  research is not licensed real-time market data — treat every report as a
+  starting point for your own research, not financial advice.

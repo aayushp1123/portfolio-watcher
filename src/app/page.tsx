@@ -1,69 +1,167 @@
-import Image from "next/image";
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import { authOptions } from "@/lib/auth";
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 
-export default function Home() {
+export default async function Home() {
+  const session = await getServerSession(authOptions);
+  if (session) {
+    redirect("/dashboard");
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="flex min-h-full flex-1 flex-col">
+      <nav className="sticky top-0 z-10 border-b border-line bg-paper-50/95 backdrop-blur">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 px-4 py-3">
+          <span className="font-[family-name:var(--font-heading)] text-sm font-bold text-ink-900">
+            Portfolio Watcher
+          </span>
+          <div className="flex items-center gap-4">
+            <Link href="/sample" className="text-sm font-semibold text-ink-700 hover:text-teal-600">
+              See a sample dashboard
+            </Link>
+            <Link href="/login" className="text-sm text-ink-500 hover:text-teal-600">
+              Log in
+            </Link>
+            <Link href="/signup">
+              <Button>Sign up free</Button>
+            </Link>
+          </div>
+        </div>
+      </nav>
+
+      <section className="flex flex-col items-center px-4 py-16 text-center">
+        <p className="text-xs font-semibold uppercase tracking-widest text-teal-600">
+          Personal Investing Command Center
+        </p>
+        <h1 className="mt-1 max-w-xl font-[family-name:var(--font-heading)] text-4xl font-bold text-ink-900">
+          Portfolio Watcher
+        </h1>
+        <p className="mt-4 max-w-md text-ink-500">
+          Connect your own brokerage account, set your own goals, and get plain-English, AI-researched
+          daily digests, weekly research, and breaking-news alerts — built around your holdings, not a
+          generic feed.
+        </p>
+        <div className="mt-8 flex flex-wrap justify-center gap-3">
+          <Link href="/signup">
+            <Button>Create a free account</Button>
+          </Link>
+          <Link href="/sample">
+            <Button variant="secondary">See a sample dashboard</Button>
+          </Link>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-3xl px-4 py-10">
+        <h2 className="text-center font-[family-name:var(--font-heading)] text-2xl font-bold text-ink-900">
+          What you get
+        </h2>
+        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Card>
+            <p className="text-xs font-semibold uppercase tracking-wide text-teal-600">Every day</p>
+            <h3 className="mt-1 font-[family-name:var(--font-heading)] font-bold text-ink-900">
+              Daily Digest
+            </h3>
+            <p className="mt-2 text-sm text-ink-500">
+              Your total value, a plain-English risk rating on every holding, exit-rule status, dividend
+              notes, and tax considerations — no jargon, no assumed experience.
+            </p>
+          </Card>
+          <Card>
+            <p className="text-xs font-semibold uppercase tracking-wide text-teal-600">Every week</p>
+            <h3 className="mt-1 font-[family-name:var(--font-heading)] font-bold text-ink-900">
+              Weekly Trends
+            </h3>
+            <p className="mt-2 text-sm text-ink-500">
+              How your actual allocation compares to the goal you set, what's moving in the market, and
+              a couple of new stock or ETF ideas worth knowing about.
+            </p>
+          </Card>
+          <Card>
+            <p className="text-xs font-semibold uppercase tracking-wide text-teal-600">As it happens</p>
+            <h3 className="mt-1 font-[family-name:var(--font-heading)] font-bold text-ink-900">
+              Breaking News
+            </h3>
+            <p className="mt-2 text-sm text-ink-500">
+              A quiet, no-hype watch for material news or big price moves on things you actually own —
+              nothing flagged twice, nothing sensational.
+            </p>
+          </Card>
+        </div>
+        <p className="mt-6 text-center text-sm text-ink-500">
+          Not sure what any of that looks like yet?{" "}
+          <Link href="/sample" className="font-semibold text-teal-600 hover:underline">
+            Walk through a sample dashboard
+          </Link>{" "}
+          with realistic example data — no account needed.
+        </p>
+      </section>
+
+      <section className="mx-auto w-full max-w-3xl px-4 py-10">
+        <h2 className="text-center font-[family-name:var(--font-heading)] text-2xl font-bold text-ink-900">
+          How it works
+        </h2>
+        <div className="mt-6 flex flex-col gap-4">
+          <Card className="flex items-start gap-4">
+            <span className="font-[family-name:var(--font-heading)] text-xl font-bold text-teal-600">
+              1
+            </span>
+            <div>
+              <h3 className="font-[family-name:var(--font-heading)] font-bold text-ink-900">
+                Create your account and set your goals
+              </h3>
+              <p className="mt-1 text-sm text-ink-500">
+                Sign up, then tell it your target allocation and any exit rules — like &ldquo;sell if this
+                hits $40&rdquo; — in your own words.
+              </p>
+            </div>
+          </Card>
+          <Card className="flex items-start gap-4">
+            <span className="font-[family-name:var(--font-heading)] text-xl font-bold text-teal-600">
+              2
+            </span>
+            <div>
+              <h3 className="font-[family-name:var(--font-heading)] font-bold text-ink-900">
+                Connect a brokerage account
+              </h3>
+              <p className="mt-1 text-sm text-ink-500">
+                Securely link your holdings through Plaid. Your access token is encrypted at rest, and
+                nothing is ever sold or shared.
+              </p>
+            </div>
+          </Card>
+          <Card className="flex items-start gap-4">
+            <span className="font-[family-name:var(--font-heading)] text-xl font-bold text-teal-600">
+              3
+            </span>
+            <div>
+              <h3 className="font-[family-name:var(--font-heading)] font-bold text-ink-900">
+                Get reports built specifically around what you own
+              </h3>
+              <p className="mt-1 text-sm text-ink-500">
+                Every report is researched fresh against your real holdings and your own goals — not a
+                generic market summary.
+              </p>
+            </div>
+          </Card>
+        </div>
+      </section>
+
+      <section className="mx-auto w-full max-w-3xl px-4 pb-16">
+        <Card className="bg-teal-100 border-none text-center">
+          <h2 className="font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
+            Free to explore, always
+          </h2>
+          <p className="mx-auto mt-2 max-w-lg text-sm text-ink-900">
+            Creating an account, setting goals, and browsing the sample dashboard cost nothing and never
+            will. Connecting a real brokerage account and generating live AI reports are optional,
+            separate steps you turn on yourself when you're ready — never automatic, never a surprise
+            charge.
           </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+        </Card>
+      </section>
     </div>
   );
 }

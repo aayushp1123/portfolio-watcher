@@ -1,26 +1,129 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+  --ink-900: #17212e;
+  --ink-700: #33414f;
+  --ink-500: #5c6b7a;
+  --paper-50: #eef2f5;
+  --paper-0: #ffffff;
+  --line: #dde3e8;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --teal-600: #1f6f78;
+  --teal-700: #185a61;
+  --teal-100: #dcecec;
+
+  --good-600: #3e8e52;
+  --good-100: #dcefdf;
+  --good-800: #1f5a2c;
+
+  --warn-600: #b8792a;
+  --warn-100: #f3e4cc;
+  --warn-800: #7a4f14;
+
+  --crit-600: #b8453a;
+  --crit-100: #f5dfda;
+  --crit-800: #7c2c23;
+
+  --font-sans-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-heading-stack: "Century Gothic", Futura, "Trebuchet MS", "Segoe UI", var(--font-sans-stack);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme="light"]) {
+    --ink-900: #eef2f5;
+    --ink-700: #cfd8e0;
+    --ink-500: #9fadb9;
+    --paper-50: #101820;
+    --paper-0: #182230;
+    --line: #2a3644;
+
+    --teal-600: #4fb3ba;
+    --teal-700: #6ec6cc;
+    --teal-100: #1c3336;
+
+    --good-600: #6bc47e;
+    --good-100: #1b3324;
+    --good-800: #a9e0b6;
+
+    --warn-600: #dba05a;
+    --warn-100: #3a2c16;
+    --warn-800: #eec695;
+
+    --crit-600: #e08277;
+    --crit-100: #3a201d;
+    --crit-800: #f0aca3;
   }
 }
 
+:root[data-theme="dark"] {
+  --ink-900: #eef2f5;
+  --ink-700: #cfd8e0;
+  --ink-500: #9fadb9;
+  --paper-50: #101820;
+  --paper-0: #182230;
+  --line: #2a3644;
+
+  --teal-600: #4fb3ba;
+  --teal-700: #6ec6cc;
+  --teal-100: #1c3336;
+
+  --good-600: #6bc47e;
+  --good-100: #1b3324;
+  --good-800: #a9e0b6;
+
+  --warn-600: #dba05a;
+  --warn-100: #3a2c16;
+  --warn-800: #eec695;
+
+  --crit-600: #e08277;
+  --crit-100: #3a201d;
+  --crit-800: #f0aca3;
+}
+
+@theme inline {
+  --color-ink-900: var(--ink-900);
+  --color-ink-700: var(--ink-700);
+  --color-ink-500: var(--ink-500);
+  --color-paper-50: var(--paper-50);
+  --color-paper-0: var(--paper-0);
+  --color-line: var(--line);
+
+  --color-teal-600: var(--teal-600);
+  --color-teal-700: var(--teal-700);
+  --color-teal-100: var(--teal-100);
+
+  --color-good-600: var(--good-600);
+  --color-good-100: var(--good-100);
+  --color-good-800: var(--good-800);
+
+  --color-warn-600: var(--warn-600);
+  --color-warn-100: var(--warn-100);
+  --color-warn-800: var(--warn-800);
+
+  --color-crit-600: var(--crit-600);
+  --color-crit-100: var(--crit-100);
+  --color-crit-800: var(--crit-800);
+
+  --font-sans: var(--font-sans-stack);
+  --font-heading: var(--font-heading-stack);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper-50);
+  color: var(--ink-900);
+  font-family: var(--font-sans-stack);
+  line-height: 1.5;
+}
+
+::selection {
+  background: var(--teal-100);
+  color: var(--teal-700);
 }
