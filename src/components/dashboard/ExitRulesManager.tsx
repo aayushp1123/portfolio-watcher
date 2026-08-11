@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { TickerAutocomplete } from "@/components/ui/TickerAutocomplete";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
 
@@ -105,11 +106,7 @@ export function ExitRulesManager({ initialRules }: { initialRules: ExitRule[] })
 
       <div className="mt-5 flex flex-col gap-3 border-t border-line pt-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Input
-            placeholder="Ticker (e.g. VOO)"
-            value={ticker}
-            onChange={(e) => setTicker(e.target.value)}
-          />
+          <TickerAutocomplete value={ticker} onChange={setTicker} placeholder="Ticker (e.g. VOO)" />
           <select
             value={ruleType}
             onChange={(e) => setRuleType(e.target.value as ExitRule["ruleType"])}
