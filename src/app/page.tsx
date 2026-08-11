@@ -7,13 +7,29 @@ import { HeroChart } from "@/components/graphics/HeroChart";
 import { IconDigest, IconTrends, IconNews } from "@/components/graphics/FeatureIcons";
 import { SidebarShell } from "@/components/SidebarShell";
 import { getSidebarArticles } from "@/lib/personalizedNews";
+import type { NewsArticle } from "@/lib/newsFeed";
+
+function PageBody({
+  loggedIn,
+  articles,
+  children,
+}: {
+  loggedIn: boolean;
+  articles: NewsArticle[];
+  children: React.ReactNode;
+}) {
+  if (!loggedIn) return <>{children}</>;
+  return <SidebarShell articles={articles}>{children}</SidebarShell>;
+}
 
 export default async function Home() {
   const session = await getServerSession(authOptions);
   const loggedIn = !!session;
   const userId = loggedIn ? (session!.user as { id: string }).id : null;
 
-  const articles = await getSidebarArticles(userId);
+  // Logged-out homepage stays plain: just the pitch, sign up/log in, and the
+  // sample dashboard link — no article feed until you actually have an account.
+  const articles = loggedIn ? await getSidebarArticles(userId) : [];
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -42,7 +58,7 @@ export default async function Home() {
         </div>
       </nav>
 
-      <SidebarShell articles={articles}>
+      <PageBody loggedIn={loggedIn} articles={articles}>
       <section className="flex flex-col items-center py-16 text-center">
         <p className="text-xs font-semibold uppercase tracking-widest text-teal-600">
           Personal Portfolio Tracker
@@ -187,7 +203,7 @@ export default async function Home() {
           </p>
         </Card>
       </section>
-      </SidebarShell>
+      </PageBody>
     </div>
   );
 }
