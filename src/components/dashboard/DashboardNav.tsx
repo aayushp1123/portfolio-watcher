@@ -17,24 +17,22 @@ export function DashboardNav() {
 
   return (
     <nav className="sticky top-0 z-10 border-b border-line bg-paper-50/95 backdrop-blur">
-      <div className="mx-auto flex max-w-3xl items-center px-4 py-3">
-        <div className="flex flex-1 items-center">
-          <Link href="/" className="flex items-center gap-2">
-            <LogoMark className="h-6 w-6" />
-            <span className="font-[family-name:var(--font-heading)] text-sm font-bold text-ink-900">
-              Portfolio Watcher
-            </span>
-          </Link>
-        </div>
+      <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
+        <Link href="/" className="flex flex-none items-center gap-2">
+          <LogoMark className="h-6 w-6" />
+          <span className="whitespace-nowrap font-[family-name:var(--font-heading)] text-sm font-bold text-ink-900">
+            Portfolio Watcher
+          </span>
+        </Link>
 
-        <div className="flex flex-1 flex-wrap justify-center gap-1.5">
+        <div className="flex flex-1 justify-center gap-1.5 overflow-x-auto">
           {links.map((link) => {
             const active = pathname === link.href;
             return (
               <Link
                 key={link.href}
                 href={link.href}
-                className={`rounded-full border px-3 py-1.5 font-[family-name:var(--font-heading)] text-sm font-semibold transition-colors ${
+                className={`whitespace-nowrap rounded-full border px-3 py-1.5 font-[family-name:var(--font-heading)] text-sm font-semibold transition-colors ${
                   active
                     ? "border-teal-600 text-teal-600"
                     : "border-line text-ink-700 hover:border-teal-600 hover:text-teal-600"
@@ -46,14 +44,12 @@ export function DashboardNav() {
           })}
         </div>
 
-        <div className="flex flex-1 items-center justify-end">
-          <button
-            onClick={() => signOut({ callbackUrl: "/login" })}
-            className="text-sm text-ink-500 hover:text-crit-600"
-          >
-            Log out
-          </button>
-        </div>
+        <button
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="flex-none whitespace-nowrap text-sm text-ink-500 hover:text-crit-600"
+        >
+          Log out
+        </button>
       </div>
     </nav>
   );
