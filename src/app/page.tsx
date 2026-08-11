@@ -1,47 +1,19 @@
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { HeroChart } from "@/components/graphics/HeroChart";
 import { IconDigest, IconTrends, IconNews } from "@/components/graphics/FeatureIcons";
-import { NewsSidebar } from "@/components/NewsSidebar";
-import { getPersonalizedNews } from "@/lib/newsFeed";
-
-async function getUserTickers(userId: string): Promise<string[]> {
-  const [watchlistItems, plaidItems] = await Promise.all([
-    prisma.watchlistItem.findMany({ where: { userId }, select: { ticker: true } }),
-    prisma.plaidItem.findMany({
-      where: { userId, status: "active" },
-      select: { lastHoldingsJson: true },
-    }),
-  ]);
-
-  const tickers = watchlistItems.map((w) => w.ticker);
-  for (const item of plaidItems) {
-    if (!item.lastHoldingsJson) continue;
-    try {
-      const parsed = JSON.parse(item.lastHoldingsJson) as {
-        securities?: Array<{ ticker_symbol: string | null }>;
-      };
-      for (const s of parsed.securities ?? []) {
-        if (s.ticker_symbol) tickers.push(s.ticker_symbol);
-      }
-    } catch {
-      // Skip malformed cached holdings.
-    }
-  }
-  return tickers;
-}
+import { SidebarShell } from "@/components/SidebarShell";
+import { getSidebarArticles } from "@/lib/personalizedNews";
 
 export default async function Home() {
   const session = await getServerSession(authOptions);
   const loggedIn = !!session;
   const userId = loggedIn ? (session!.user as { id: string }).id : null;
 
-  const tickers = userId ? await getUserTickers(userId) : [];
-  const articles = await getPersonalizedNews(tickers);
+  const articles = await getSidebarArticles(userId);
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -70,8 +42,7 @@ export default async function Home() {
         </div>
       </nav>
 
-      <div className="mx-auto grid w-full max-w-6xl gap-8 px-4 lg:grid-cols-[1fr_320px] lg:px-8">
-      <div className="min-w-0">
+      <SidebarShell articles={articles}>
       <section className="flex flex-col items-center py-16 text-center">
         <p className="text-xs font-semibold uppercase tracking-widest text-teal-600">
           Personal Portfolio Tracker
@@ -216,10 +187,7 @@ export default async function Home() {
           </p>
         </Card>
       </section>
-      </div>
-
-      <NewsSidebar articles={articles} />
-      </div>
+      </SidebarShell>
     </div>
   );
 }
