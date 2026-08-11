@@ -14,10 +14,14 @@ export const DAILY_DIGEST_SCHEDULE: CronTime[] = [
 
 export const WEEKLY_TRENDS_SCHEDULE: CronTime[] = [{ days: [1], hour: 12, minute: 0 }];
 
-export const BREAKING_NEWS_SCHEDULE: CronTime[] = [13, 14, 15, 16, 17, 18, 19, 20].map((hour) => ({
+/** Checks every ~2 hours during market hours rather than hourly -- Gemini's
+ * free tier caps the whole project at 20 requests/day shared across every
+ * user and report type, so this keeps real headroom instead of sitting
+ * right at that ceiling as more users are added. */
+export const BREAKING_NEWS_SCHEDULE: CronTime[] = [13, 15, 17, 19].map((hour) => ({
   days: WEEKDAYS,
   hour,
-  minute: 15,
+  minute: 20,
 }));
 
 /** Earliest future UTC Date matching any entry in the schedule. */
