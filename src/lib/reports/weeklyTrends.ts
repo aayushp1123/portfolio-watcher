@@ -19,6 +19,10 @@ RISK RATING METHODOLOGY: Low/Medium/High for every candidate, based on (a) volat
 
 RATING METHODOLOGY (Buy/Hold/Sell, required for every candidate): Search for the current professional analyst consensus for the ticker from reputable aggregators (Yahoo Finance "Analyst Ratings", TipRanks consensus, Zacks Rank, MarketWatch analyst ratings, WSJ Markets, or Morningstar star rating) — this reflects institutional/accredited-investor opinion. Combine that consensus with your own DEPTH REQUIREMENT reasoning above to land on exactly one of Buy/Hold/Sell, plus a single tight sentence of rationale in ratingReason. If a candidate has thin or no analyst coverage, say so explicitly in ratingReason instead of inventing a consensus. This is a synthesis of public professional opinion for informational purposes, not personalized financial advice.
 
+WATCHLIST ITEMS: The user may also list tickers they don't own yet, just want to track. Research and rate each one the same way as a NEW IDEA candidate above (summary, riskRating/riskReason, rating/ratingReason) — these are separate from the newIdeas list you're suggesting; watchlistItems is specifically the user's own tracked tickers.
+
+NO BROKERAGE CONNECTED: If CURRENT HOLDINGS says the user has no brokerage connection, set every allocationCheck actual* percentage to 0 and write its summary to explain there's no real portfolio yet (use the goal's target percentages as-is, or the stated default). connectionsToExistingHoldings should be an empty array in that case. The hasBrokerageConnection field will be overwritten by the caller — just leave it false in this case, true otherwise.
+
 Return ONLY the structured JSON matching the provided schema — no other text. This is NOT financial advice; frame everything as "worth researching further."`;
 
 function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>): string {
@@ -30,12 +34,19 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
     ? `Target allocation: ${context.goal.targetCoreEtfPct}% core ETFs / ${context.goal.targetGrowthPct}% individual growth / ${context.goal.targetSpeculativePct}% speculative.${context.goal.notes ? ` Notes: ${context.goal.notes}` : ""}`
     : "(no goal set — use 70% core ETFs / 20% individual growth / 10% speculative as a default assumption and say so)";
 
+  const watchlistList = context.watchlist
+    .map((w) => `- ${w.ticker}${w.note ? ` (${w.note})` : ""}`)
+    .join("\n") || "(none)";
+
   return `Today's date: ${new Date().toISOString().slice(0, 10)}
 
 CURRENT HOLDINGS:
-${holdingsList}
+${context.holdings.length > 0 ? holdingsList : "(none — user has no brokerage connection)"}
 
-CASH AVAILABLE: $${context.cashAvailable.toFixed(2)}
+CASH AVAILABLE: ${context.hasBrokerageConnection ? `$${context.cashAvailable.toFixed(2)}` : "N/A (no brokerage connected)"}
+
+WATCHLIST (not owned, tracked only):
+${watchlistList}
 
 USER'S GOALS:
 ${goalText}
@@ -46,8 +57,8 @@ Research current market trends and produce the full weekly digest per the schema
 export async function generateWeeklyTrends(userId: string): Promise<{ skipped: true; reason: string } | { skipped: false; report: WeeklyTrends }> {
   const context = await buildUserContext(userId);
 
-  if (context.holdings.length === 0 && !context.goal) {
-    return { skipped: true, reason: "Connect a brokerage account or set your goals first." };
+  if (context.holdings.length === 0 && context.watchlist.length === 0 && !context.goal) {
+    return { skipped: true, reason: "Connect a brokerage account, add a watchlist ticker, or set your goals first." };
   }
 
   const client = getGeminiClient();
@@ -70,12 +81,14 @@ export async function generateWeeklyTrends(userId: string): Promise<{ skipped: t
   }
 
   const report = weeklyTrendsSchema.parse(JSON.parse(text));
+  // Deterministic, not model-trusted — the model can misjudge this from prose alone.
+  report.hasBrokerageConnection = context.hasBrokerageConnection;
 
   await prisma.report.create({
     data: {
       userId,
       type: "WEEKLY_TRENDS",
-      schemaVersion: 2,
+      schemaVersion: 3,
       content: JSON.stringify(report),
       model,
       inputTokens: response.usageMetadata?.promptTokenCount ?? null,

@@ -10,13 +10,13 @@ export function HeroChart() {
     >
       <defs>
         <linearGradient id="heroChartFill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--teal-600)" stopOpacity="0.22" />
-          <stop offset="100%" stopColor="var(--teal-600)" stopOpacity="0" />
+          <stop offset="0%" style={{ stopColor: "var(--teal-600)", stopOpacity: 0.22 }} />
+          <stop offset="100%" style={{ stopColor: "var(--teal-600)", stopOpacity: 0 }} />
         </linearGradient>
       </defs>
 
       {[44, 84, 124, 164].map((y) => (
-        <line key={y} x1="0" y1={y} x2="560" y2={y} stroke="var(--line)" strokeWidth="1" />
+        <line key={y} x1="0" y1={y} x2="560" y2={y} style={{ stroke: "var(--line)" }} strokeWidth="1" />
       ))}
 
       <path
@@ -25,7 +25,7 @@ export function HeroChart() {
       />
       <path
         d="M0 176 L70 158 L140 168 L210 122 L280 134 L350 88 L420 100 L490 54 L560 40"
-        stroke="var(--teal-600)"
+        style={{ stroke: "var(--teal-600)" }}
         strokeWidth="2.5"
         strokeLinejoin="round"
         strokeLinecap="round"
@@ -38,7 +38,14 @@ export function HeroChart() {
         [420, 100],
         [560, 40],
       ].map(([cx, cy]) => (
-        <circle key={cx} cx={cx} cy={cy} r="4" fill="var(--paper-0)" stroke="var(--teal-600)" strokeWidth="2.5" />
+        <circle
+          key={cx}
+          cx={cx}
+          cy={cy}
+          r="4"
+          style={{ fill: "var(--paper-0)", stroke: "var(--teal-600)" }}
+          strokeWidth="2.5"
+        />
       ))}
     </svg>
   );

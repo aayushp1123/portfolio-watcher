@@ -6,15 +6,17 @@ import { isPlaidConfigured } from "@/lib/plaid";
 import { ConfigStatus } from "@/components/dashboard/ConfigStatus";
 import { GoalEditor } from "@/components/dashboard/GoalEditor";
 import { ExitRulesManager } from "@/components/dashboard/ExitRulesManager";
+import { WatchlistManager } from "@/components/dashboard/WatchlistManager";
 import { PlaidItemsList } from "@/components/dashboard/PlaidItemsList";
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions);
   const userId = (session!.user as { id: string }).id;
 
-  const [goal, exitRules, plaidItems] = await Promise.all([
+  const [goal, exitRules, watchlistItems, plaidItems] = await Promise.all([
     prisma.goal.findUnique({ where: { userId } }),
     prisma.exitRule.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
+    prisma.watchlistItem.findMany({ where: { userId }, orderBy: { createdAt: "desc" } }),
     prisma.plaidItem.findMany({
       where: { userId },
       select: { id: true, institutionName: true, status: true, lastSyncedAt: true },
@@ -32,6 +34,7 @@ export default async function SettingsPage() {
         <ConfigStatus aiConfigured={isAiConfigured()} plaidConfigured={isPlaidConfigured()} />
         <PlaidItemsList items={plaidItems} plaidConfigured={isPlaidConfigured()} />
         <GoalEditor initialGoal={goal} />
+        <WatchlistManager initialItems={watchlistItems} />
         <ExitRulesManager initialRules={exitRules} />
       </div>
     </div>

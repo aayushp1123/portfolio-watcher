@@ -10,8 +10,10 @@ export const sampleDailyDigest: DailyDigest = {
   asOf: "2026-08-07",
   portfolioSummary:
     "Your portfolio is up modestly this week, led by your core index fund. Your one individual stock, BEPC, is still below your $40 exit target, so no action is needed there yet.",
+  hasBrokerageConnection: true,
   totalValue: 18420.55,
   overallGainLossPct: 6.8,
+  cashAvailable: 1000.05,
   holdings: [
     {
       ticker: "VOO",
@@ -78,6 +80,19 @@ export const sampleDailyDigest: DailyDigest = {
       taxNote: null,
     },
   ],
+  watchlistItems: [
+    {
+      ticker: "SCHD",
+      approxPrice: 27.4,
+      summary:
+        "A dividend-focused ETF holding roughly 100 established U.S. companies — you're tracking it as a possible addition, not holding it yet.",
+      riskRating: "Low",
+      riskReason: "Diversified across ~100 profitable, dividend-paying companies with long track records.",
+      rating: "Buy",
+      ratingReason: "Widely favored by dividend-focused analysts as a solid core addition.",
+      sourceUrls: [],
+    },
+  ],
   dividendNotes: [
     "BEPC: next ex-dividend date is around Aug 28, 2026. A dividend is a small cash payment a company sends you just for owning its stock, usually every quarter.",
     "VOO: pays a small quarterly dividend automatically from the underlying companies in the fund; no action needed.",
@@ -89,6 +104,7 @@ export const sampleDailyDigest: DailyDigest = {
 
 export const sampleWeeklyTrends: WeeklyTrends = {
   asOf: "2026-08-03",
+  hasBrokerageConnection: true,
   allocationCheck: {
     targetCoreEtfPct: 60,
     targetGrowthPct: 30,
@@ -145,6 +161,19 @@ export const sampleWeeklyTrends: WeeklyTrends = {
         "Analyst opinion is divided post-pullback — worth watching for a clearer trend before treating it as a buy.",
       bucket: "SPECULATIVE",
       horizon: "short-term",
+      sourceUrls: [],
+    },
+  ],
+  watchlistItems: [
+    {
+      ticker: "SCHD",
+      approxPrice: 27.4,
+      summary:
+        "A dividend-focused ETF holding roughly 100 established U.S. companies — you're tracking it as a possible addition, not holding it yet.",
+      riskRating: "Low",
+      riskReason: "Diversified across ~100 profitable, dividend-paying companies with long track records.",
+      rating: "Buy",
+      ratingReason: "Widely favored by dividend-focused analysts as a solid core addition.",
       sourceUrls: [],
     },
   ],

@@ -13,34 +13,43 @@ const bucketLabel = {
 export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
   return (
     <div className="flex flex-col gap-6">
-      <section>
-        <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
-          Portfolio Allocation Check
-        </h2>
+      {report.hasBrokerageConnection ? (
+        <section>
+          <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
+            Portfolio Allocation Check
+          </h2>
+          <Card>
+            <div className="flex h-8 overflow-hidden rounded-lg border border-line">
+              <div
+                className="flex items-center justify-center bg-teal-600 text-xs font-bold text-white"
+                style={{ width: `${report.allocationCheck.actualCoreEtfPct}%` }}
+              >
+                {report.allocationCheck.actualCoreEtfPct.toFixed(0)}%
+              </div>
+              <div
+                className="flex items-center justify-center bg-good-600 text-xs font-bold text-white"
+                style={{ width: `${report.allocationCheck.actualGrowthPct}%` }}
+              >
+                {report.allocationCheck.actualGrowthPct.toFixed(0)}%
+              </div>
+              <div
+                className="flex items-center justify-center bg-warn-600 text-xs font-bold text-white"
+                style={{ width: `${report.allocationCheck.actualSpeculativePct}%` }}
+              >
+                {report.allocationCheck.actualSpeculativePct.toFixed(0)}%
+              </div>
+            </div>
+            <p className="mt-3 text-sm text-ink-700">{report.allocationCheck.summary}</p>
+          </Card>
+        </section>
+      ) : (
         <Card>
-          <div className="flex h-8 overflow-hidden rounded-lg border border-line">
-            <div
-              className="flex items-center justify-center bg-teal-600 text-xs font-bold text-white"
-              style={{ width: `${report.allocationCheck.actualCoreEtfPct}%` }}
-            >
-              {report.allocationCheck.actualCoreEtfPct.toFixed(0)}%
-            </div>
-            <div
-              className="flex items-center justify-center bg-good-600 text-xs font-bold text-white"
-              style={{ width: `${report.allocationCheck.actualGrowthPct}%` }}
-            >
-              {report.allocationCheck.actualGrowthPct.toFixed(0)}%
-            </div>
-            <div
-              className="flex items-center justify-center bg-warn-600 text-xs font-bold text-white"
-              style={{ width: `${report.allocationCheck.actualSpeculativePct}%` }}
-            >
-              {report.allocationCheck.actualSpeculativePct.toFixed(0)}%
-            </div>
-          </div>
-          <p className="mt-3 text-sm text-ink-700">{report.allocationCheck.summary}</p>
+          <p className="text-sm text-ink-700">
+            No brokerage account connected yet, so there&apos;s no real allocation to check —
+            add tickers to your watchlist below or connect an account in Settings.
+          </p>
         </Card>
-      </section>
+      )}
 
       <section>
         <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
@@ -83,6 +92,35 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
           ))}
         </div>
       </section>
+
+      {report.watchlistItems.length > 0 && (
+        <section>
+          <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
+            Your Watchlist
+          </h2>
+          <div className="flex flex-col gap-3">
+            {report.watchlistItems.map((w) => (
+              <Card key={w.ticker}>
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <span className="font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
+                    {w.ticker}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <Pill tone={ratingTone[w.rating]}>{w.rating}</Pill>
+                    <Pill tone={riskTone[w.riskRating]}>{w.riskRating} risk</Pill>
+                  </div>
+                </div>
+                {w.approxPrice != null && (
+                  <p className="mt-2 text-sm text-ink-700">~${w.approxPrice.toLocaleString()}</p>
+                )}
+                <p className="mt-1 text-sm text-ink-700">{w.summary}</p>
+                <p className="mt-1 text-sm text-ink-700">{w.ratingReason}</p>
+                <p className="mt-1 text-sm text-ink-500">{w.riskReason}</p>
+              </Card>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -24,6 +24,10 @@ export interface UserReportContext {
   }>;
   holdings: PortfolioHolding[];
   cashAvailable: number;
+  /** Whether the user has an active Plaid connection at all — distinguishes
+   * "connected account with $0 cash" from "no account connected, N/A". */
+  hasBrokerageConnection: boolean;
+  watchlist: Array<{ ticker: string; note: string | null }>;
 }
 
 /** Builds the per-user context passed into an AI report generation call. Reads
@@ -31,10 +35,11 @@ export interface UserReportContext {
  * calling Plaid live on every report — keeps report generation to a single
  * external dependency (Anthropic) per run. */
 export async function buildUserContext(userId: string): Promise<UserReportContext> {
-  const [goal, exitRules, plaidItems] = await Promise.all([
+  const [goal, exitRules, plaidItems, watchlistItems] = await Promise.all([
     prisma.goal.findUnique({ where: { userId } }),
     prisma.exitRule.findMany({ where: { userId, active: true } }),
     prisma.plaidItem.findMany({ where: { userId, status: "active" } }),
+    prisma.watchlistItem.findMany({ where: { userId } }),
   ]);
 
   const holdings: PortfolioHolding[] = [];
@@ -100,5 +105,7 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
     })),
     holdings,
     cashAvailable,
+    hasBrokerageConnection: plaidItems.length > 0,
+    watchlist: watchlistItems.map((w) => ({ ticker: w.ticker, note: w.note })),
   };
 }

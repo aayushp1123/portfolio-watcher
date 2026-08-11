@@ -21,6 +21,7 @@ model User {
   goal           Goal?
   exitRules      ExitRule[]
   plaidItems     PlaidItem[]
+  watchlistItems WatchlistItem[]
   reports        Report[]
 }
 
@@ -55,6 +56,17 @@ model ExitRule {
   updatedAt DateTime     @updatedAt
 
   @@index([userId, ticker])
+}
+
+model WatchlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticker    String
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, ticker])
 }
 
 model PlaidItem {

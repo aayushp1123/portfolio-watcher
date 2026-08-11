@@ -42,8 +42,8 @@ export default async function DashboardPage() {
           <p className="text-sm text-ink-700">
             No digest yet.{" "}
             {aiConfigured
-              ? "Click Generate Report above to research your holdings and build your first digest."
-              : "Once you add your Gemini API key and connect a brokerage account, click Generate Report to build your first digest."}
+              ? "Click Generate Report above to build your first digest from your holdings or watchlist."
+              : "Once your Gemini API key is set, connect a brokerage account or add a watchlist ticker in Settings, then click Generate Report."}
           </p>
         </Card>
       ) : (

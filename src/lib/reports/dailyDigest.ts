@@ -23,6 +23,10 @@ Holdings with no active exit rule get exitRuleStatus: null (status "none").
 
 TAX NOTES: For any holding currently at an unrealized loss (market value below cost basis), include a taxNote mentioning the wash-sale rule in one plain sentence (selling at a loss and rebuying within 30 days disallows the tax deduction) and that tax-loss harvesting is a legitimate strategy some investors use. For holdings at a gain or with no cost basis data, taxNote should be null.
 
+WATCHLIST ITEMS: The user may also list tickers they don't own yet, just want to track. For each one, research its current price and a short plain-English summary of what it does and anything notable today, plus the same riskRating/riskReason and rating/ratingReason treatment as a holding (same methodology above). Watchlist items have no shares, cost basis, exit rule, or tax note — omit those concepts entirely for them.
+
+NO BROKERAGE CONNECTED: If the HOLDINGS section says the user has no brokerage connection, set totalValue to 0, overallGainLossPct and cashAvailable to null, holdings to an empty array, and dividendNotes to an empty array — do not invent placeholder position data. Write portfolioSummary and bottomLine to reflect that this is a watchlist-only digest (no owned positions yet), not a portfolio recap. The hasBrokerageConnection field will be overwritten by the caller — just leave it false in this case, true otherwise.
+
 Return ONLY the structured JSON matching the provided schema — no other text.`;
 
 function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>): string {
@@ -38,27 +42,34 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
     ? `Target allocation: ${context.goal.targetCoreEtfPct}% core ETFs / ${context.goal.targetGrowthPct}% individual growth / ${context.goal.targetSpeculativePct}% speculative.${context.goal.notes ? ` Notes: ${context.goal.notes}` : ""}`
     : "(no goal set yet)";
 
+  const watchlistList = context.watchlist
+    .map((w) => `- ${w.ticker}${w.note ? ` (${w.note})` : ""}`)
+    .join("\n") || "(none)";
+
   return `Today's date: ${new Date().toISOString().slice(0, 10)}
 
 HOLDINGS:
-${holdingsList}
+${context.holdings.length > 0 ? holdingsList : "(none — user has no brokerage connection)"}
 
-CASH AVAILABLE: $${context.cashAvailable.toFixed(2)}
+CASH AVAILABLE: ${context.hasBrokerageConnection ? `$${context.cashAvailable.toFixed(2)}` : "N/A (no brokerage connected)"}
 
 ACTIVE EXIT RULES:
 ${exitRulesList}
 
+WATCHLIST (not owned, tracked only):
+${watchlistList}
+
 USER'S GOALS:
 ${goalText}
 
-Research each holding's current price and any material news using web search, then produce the full daily digest per the schema and system instructions.`;
+Research each holding's and watchlist ticker's current price and any material news using web search, then produce the full daily digest per the schema and system instructions.`;
 }
 
 export async function generateDailyDigest(userId: string): Promise<{ skipped: true; reason: string } | { skipped: false; report: DailyDigest }> {
   const context = await buildUserContext(userId);
 
-  if (context.holdings.length === 0) {
-    return { skipped: true, reason: "No holdings connected yet — nothing to research." };
+  if (context.holdings.length === 0 && context.watchlist.length === 0) {
+    return { skipped: true, reason: "No holdings or watchlist tickers yet — nothing to research." };
   }
 
   const client = getGeminiClient();
@@ -81,12 +92,17 @@ export async function generateDailyDigest(userId: string): Promise<{ skipped: tr
   }
 
   const report = dailyDigestSchema.parse(JSON.parse(text));
+  // Deterministic, not model-trusted — the model can misjudge this from prose alone.
+  report.hasBrokerageConnection = context.hasBrokerageConnection;
+  if (!context.hasBrokerageConnection) {
+    report.cashAvailable = null;
+  }
 
   await prisma.report.create({
     data: {
       userId,
       type: "DAILY_DIGEST",
-      schemaVersion: 2,
+      schemaVersion: 3,
       content: JSON.stringify(report),
       model,
       inputTokens: response.usageMetadata?.promptTokenCount ?? null,

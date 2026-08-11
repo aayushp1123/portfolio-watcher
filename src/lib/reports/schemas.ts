@@ -23,12 +23,27 @@ export const holdingSchema = z.object({
   taxNote: z.string().nullable(),
 });
 
+export const watchlistItemReportSchema = z.object({
+  ticker: z.string(),
+  approxPrice: z.number().nullable(),
+  summary: z.string(),
+  riskRating: riskToneSchema,
+  riskReason: z.string(),
+  rating: ratingSchema,
+  ratingReason: z.string(),
+  sourceUrls: z.array(z.string()),
+});
+
 export const dailyDigestSchema = z.object({
   asOf: z.string(),
   portfolioSummary: z.string(),
+  /** Deterministically overwritten from context after generation — not trusted from the model. */
+  hasBrokerageConnection: z.boolean(),
   totalValue: z.number(),
   overallGainLossPct: z.number().nullable(),
+  cashAvailable: z.number().nullable(),
   holdings: z.array(holdingSchema),
+  watchlistItems: z.array(watchlistItemReportSchema),
   dividendNotes: z.array(z.string()),
   bottomLine: z.string(),
   sourceUrls: z.array(z.string()),
@@ -51,6 +66,8 @@ export const newIdeaSchema = z.object({
 
 export const weeklyTrendsSchema = z.object({
   asOf: z.string(),
+  /** Deterministically overwritten from context after generation — not trusted from the model. */
+  hasBrokerageConnection: z.boolean(),
   allocationCheck: z.object({
     targetCoreEtfPct: z.number(),
     targetGrowthPct: z.number(),
@@ -64,6 +81,7 @@ export const weeklyTrendsSchema = z.object({
     z.object({ title: z.string(), summary: z.string(), sourceUrls: z.array(z.string()) })
   ),
   newIdeas: z.array(newIdeaSchema),
+  watchlistItems: z.array(watchlistItemReportSchema),
   connectionsToExistingHoldings: z.array(z.string()),
 });
 export type WeeklyTrends = z.infer<typeof weeklyTrendsSchema>;
