@@ -94,6 +94,25 @@ export async function getMomentum(ticker: string): Promise<Momentum | null> {
   }
 }
 
+/** Raw daily closing prices over a range — used for correlation/diversification
+ * math that needs the actual series, not just a summarized momentum figure. */
+export async function getHistoricalCloses(ticker: string, range = "3mo"): Promise<number[] | null> {
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=1d`,
+      { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const closesRaw: Array<number | null> = data?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
+    const closes = closesRaw.filter((c): c is number => typeof c === "number");
+    return closes.length >= 10 ? closes : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Fetches momentum for many tickers in parallel; failed lookups are simply omitted. */
 export async function getMomentums(tickers: string[]): Promise<Map<string, Momentum>> {
   const unique = [...new Set(tickers)];

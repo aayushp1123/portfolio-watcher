@@ -19,6 +19,10 @@ SEC FILINGS & INSIDER ACTIVITY: You may be given real, recent SEC filings (8-K m
 
 MACRO CONTEXT: If a current federal funds rate, inflation (CPI), and unemployment rate are provided, treat them as real, current, and confidently usable in reasoning about rate-sensitive holdings — do not caveat these numbers.
 
+MARKET CONTEXT (S&P 500 momentum, VIX): If given, use the S&P 500 (SPY) momentum figure as a real baseline for whether a holding is genuinely outperforming or lagging the broad market, not just moving in absolute terms. If a VIX level is given, treat it as the real current market-wide volatility/fear gauge (roughly: under 15 is calm, 15-25 is normal, above 25 signals elevated market-wide fear) and let it inform risk framing, especially for High-risk holdings.
+
+CONGRESSIONAL TRADING: You may be given real, recent stock trades disclosed by members of Congress (via the STOCK Act) for these exact tickers — genuine public disclosures, not something to caveat. If a holding has notable recent congressional buying or selling (especially multiple members, or from committees relevant to that sector), mention it briefly as one data point among many — never treat it as a standalone reason to buy or sell, and never invent a trade not in the list.
+
 EXAMPLE OF EXPECTED TONE AND DEPTH (for calibration only, not real data — do not reuse these numbers or this ticker):
 "NVDA — $224.50 (live). riskReason: 'Concentrated in a single fast-moving sector (AI infrastructure semiconductors); a leader with a dominant market position, but the stock's valuation already prices in years of growth, so any slowdown in AI capex would hit it disproportionately compared to a diversified fund.' ratingReason: 'Buy — durable competitive moat in AI accelerators and expanding data-center demand outweigh near-term valuation risk for a long-term holder.'"
 That is the bar: specific, structural reasoning tied to the actual business — not a vague "seems fine" or a generic disclaimer.
@@ -98,6 +102,20 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
     ? `Fed funds rate: ${context.macro.fedFundsRate}% (as of ${context.macro.fedFundsDate}). CPI inflation (YoY): ${context.macro.cpiYoyPct?.toFixed(1)}%. Unemployment: ${context.macro.unemploymentRate}% (as of ${context.macro.unemploymentDate}).`
     : "(not configured — reason from general knowledge if macro context is relevant)";
 
+  const marketText = [
+    context.marketMomentum
+      ? `S&P 500 (SPY) ${formatMomentum(context.marketMomentum)}`
+      : "S&P 500 momentum unavailable",
+    context.vix ? `VIX (volatility index) at ${context.vix.price.toFixed(1)}` : "VIX unavailable",
+  ].join(". ");
+
+  const congressList = context.congressTrades
+    .map(
+      (t) =>
+        `- [${t.ticker}] ${t.chamber} member ${t.person}: ${t.type}, ${t.amountRange}, transacted ${t.transactionDate} (disclosed ${t.disclosureDate})`
+    )
+    .join("\n") || "(none in the recent record)";
+
   return `Today's date: ${new Date().toISOString().slice(0, 10)}
 
 HOLDINGS:
@@ -122,6 +140,12 @@ ${insiderList}
 
 CURRENT MACRO CONTEXT:
 ${macroText}
+
+CURRENT MARKET CONTEXT:
+${marketText}
+
+RECENT CONGRESSIONAL TRADES (official STOCK Act disclosures, genuine):
+${congressList}
 
 USER'S GOALS:
 ${goalText}

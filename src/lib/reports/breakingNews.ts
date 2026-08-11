@@ -5,6 +5,7 @@ import { breakingNewsSchema, toJsonSchema, type BreakingNews } from "@/lib/repor
 
 const MOVE_THRESHOLD_PCT = 4;
 const FRESH_HEADLINE_HOURS = 30;
+const FIFTY_TWO_WEEK_PROXIMITY_PCT = 3;
 
 const SYSTEM_PROMPT = `You are a monitor for a user's investment holdings. You do NOT have live web search, so you cannot verify news events on your own — never fabricate a "breaking" headline, a specific date/time, or a price move you weren't explicitly given below.
 
@@ -14,13 +15,17 @@ FRESH REAL HEADLINES: Genuine, recently-published headlines (with publisher, dat
 
 FRESH SEC 8-K FILINGS: A company filing an 8-K with the SEC is, by definition, disclosing a material event — this is the most authoritative signal available, official and genuine, filtered to ones not already reported.
 
+52-WEEK HIGH/LOW PROXIMITY: A real, measured signal that a holding's live price is now within a few percent of its 52-week high or low — a genuine technical milestone, not something you need to verify.
+
 For each confirmed move, write one alert: headline states the ticker and the real % move, whatHappened restates the real numbers (do not invent additional facts like an earnings cause unless a fresh headline or 8-K below actually confirms it), whyItMatters gives grounded context for why a move of this size matters given the holding's risk profile.
 
 For each fresh headline that's genuinely material (real business news — earnings, M&A, guidance, executive change, major regulatory action — not routine market commentary or opinion pieces), write one alert: headline is a plain-English restatement of the real headline, whatHappened summarizes only what the headline actually says, whyItMatters gives grounded context for this specific holding, sourceUrls includes the real link given, publishedAt is the real date given. Skip headlines that are just generic commentary/opinion with no real news content.
 
 For each fresh 8-K filing, write one alert: headline notes the ticker filed a material event disclosure with the SEC, whatHappened says an 8-K was filed on the given date (you don't know the specific content unless a headline below also covers it — say so honestly rather than guessing what it's about), whyItMatters explains what an 8-K filing means in plain English and why the user should look at it, sourceUrls includes the real filing link given.
 
-If all three lists are empty, or the only items are non-material commentary, set hasMaterialEvents to false and return an empty alerts array — that is the correct, expected behavior on most runs, not a failure state.
+For each 52-week high/low proximity event, write one alert: headline states the ticker and that it's trading near its 52-week high or low with the real price and level given, whatHappened restates the real numbers, whyItMatters gives grounded context (near a high can mean strong momentum but also stretched valuation; near a low can mean a genuine buying opportunity or a warning sign, depending on whether anything else in this alert set explains why).
+
+If all four lists are empty, or the only items are non-material commentary, set hasMaterialEvents to false and return an empty alerts array — that is the correct, expected behavior on most runs, not a failure state.
 
 Return ONLY the structured JSON matching the provided schema — no other text.`;
 
@@ -28,7 +33,8 @@ function buildUserMessage(
   context: Awaited<ReturnType<typeof buildUserContext>>,
   confirmedMoves: Array<{ ticker: string; price: number; priorPrice: number; pctChange: number }>,
   freshHeadlines: Array<{ ticker: string; title: string; source: string; pubDate: string; link: string }>,
-  freshFilings: Array<{ ticker: string; description: string; filedAt: string; url: string }>
+  freshFilings: Array<{ ticker: string; description: string; filedAt: string; url: string }>,
+  nearFiftyTwoWeek: Array<{ ticker: string; direction: "high" | "low"; price: number; level: number; pct: number }>
 ): string {
   const tickers = context.holdings.map((h) => h.ticker).join(", ") || "(no holdings connected yet)";
 
@@ -57,6 +63,16 @@ function buildUserMessage(
       ? freshFilings.map((f) => `- [${f.ticker}] ${f.description}, filed ${f.filedAt} — ${f.url}`).join("\n")
       : "(none — no fresh unreported SEC filings for these holdings)";
 
+  const fiftyTwoWeekText =
+    nearFiftyTwoWeek.length > 0
+      ? nearFiftyTwoWeek
+          .map(
+            (n) =>
+              `- ${n.ticker}: now $${n.price.toFixed(2)}, within ${n.pct.toFixed(1)}% of its 52-week ${n.direction} ($${n.level.toFixed(2)})`
+          )
+          .join("\n")
+      : "(none — no holding is newly near its 52-week high/low)";
+
   return `Current UTC time: ${new Date().toISOString()}
 
 HOLDINGS TO WATCH: ${tickers}
@@ -69,6 +85,9 @@ ${headlinesText}
 
 FRESH SEC 8-K FILINGS SINCE LAST CHECK (not previously reported):
 ${filingsText}
+
+52-WEEK HIGH/LOW PROXIMITY (newly within ${FIFTY_TWO_WEEK_PROXIMITY_PCT}%, not previously reported this month):
+${fiftyTwoWeekText}
 
 Return the structured JSON per the schema and system instructions.`;
 }
@@ -137,13 +156,42 @@ export async function generateBreakingNews(userId: string): Promise<{ skipped: t
     .filter((f) => !priorReportedLinkSet.has(f.url))
     .filter((f) => f.filedAt >= filingCutoffDate);
 
+  // Dedup key includes the calendar month so a holding hovering near its
+  // 52-week line doesn't re-trigger an alert on every single check.
+  const monthBucket = new Date().toISOString().slice(0, 7);
+  const nearFiftyTwoWeek: Array<{
+    ticker: string;
+    direction: "high" | "low";
+    price: number;
+    level: number;
+    pct: number;
+    key: string;
+  }> = [];
+  for (const h of context.holdings) {
+    if (!h.livePrice?.fiftyTwoWeekHigh || !h.livePrice?.fiftyTwoWeekLow) continue;
+    const { price, fiftyTwoWeekHigh, fiftyTwoWeekLow } = h.livePrice;
+    const pctFromHigh = ((fiftyTwoWeekHigh - price) / fiftyTwoWeekHigh) * 100;
+    const pctFromLow = ((price - fiftyTwoWeekLow) / fiftyTwoWeekLow) * 100;
+    const highKey = `52wk-high:${h.ticker}:${monthBucket}`;
+    const lowKey = `52wk-low:${h.ticker}:${monthBucket}`;
+    if (pctFromHigh >= 0 && pctFromHigh <= FIFTY_TWO_WEEK_PROXIMITY_PCT && !priorReportedLinkSet.has(highKey)) {
+      nearFiftyTwoWeek.push({ ticker: h.ticker, direction: "high", price, level: fiftyTwoWeekHigh, pct: pctFromHigh, key: highKey });
+    }
+    if (pctFromLow >= 0 && pctFromLow <= FIFTY_TWO_WEEK_PROXIMITY_PCT && !priorReportedLinkSet.has(lowKey)) {
+      nearFiftyTwoWeek.push({ ticker: h.ticker, direction: "low", price, level: fiftyTwoWeekLow, pct: pctFromLow, key: lowKey });
+    }
+  }
+
   const client = getGeminiClient();
   const model = getGeminiModel();
 
   const response = await client.models.generateContent({
     model,
     contents: [
-      { role: "user", parts: [{ text: buildUserMessage(context, confirmedMoves, freshHeadlines, freshFilings) }] },
+      {
+        role: "user",
+        parts: [{ text: buildUserMessage(context, confirmedMoves, freshHeadlines, freshFilings, nearFiftyTwoWeek) }],
+      },
     ],
     config: {
       systemInstruction: SYSTEM_PROMPT,
@@ -160,14 +208,16 @@ export async function generateBreakingNews(userId: string): Promise<{ skipped: t
 
   const report = breakingNewsSchema.parse(JSON.parse(text));
   // Deterministic, not model-trusted — hasMaterialEvents follows the real detected signals.
-  report.hasMaterialEvents = confirmedMoves.length > 0 || freshHeadlines.length > 0 || freshFilings.length > 0;
+  report.hasMaterialEvents =
+    confirmedMoves.length > 0 || freshHeadlines.length > 0 || freshFilings.length > 0 || nearFiftyTwoWeek.length > 0;
 
-  // Track every fresh headline/filing we surfaced this run (whether or not
-  // the model judged it material) so it's never re-considered next check.
+  // Track every fresh headline/filing/52-week event we surfaced this run
+  // (whether or not the model judged it material) so it's never re-considered next check.
   const newReportedLinks = [
     ...priorReportedLinkSet,
     ...freshHeadlines.map((h) => h.link),
     ...freshFilings.map((f) => f.url),
+    ...nearFiftyTwoWeek.map((n) => n.key),
   ].slice(-200);
 
   await prisma.report.create({

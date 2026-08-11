@@ -3,9 +3,14 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAiConfigured } from "@/lib/gemini";
 import type { DailyDigest } from "@/lib/reports/schemas";
+import { getRatingTrackRecord } from "@/lib/reports/trackRecord";
+import { diffRatings } from "@/lib/reports/reportDiff";
 import { Card } from "@/components/ui/Card";
 import { DailyDigestView } from "@/components/reports/DailyDigestView";
 import { ReportPageHeader } from "@/components/dashboard/ReportPageHeader";
+import { ReportDiffBanner } from "@/components/dashboard/ReportDiffBanner";
+import { RatingTrackRecord } from "@/components/dashboard/RatingTrackRecord";
+import { PortfolioValueChart } from "@/components/dashboard/PortfolioValueChart";
 import { DAILY_DIGEST_SCHEDULE, getNextRun } from "@/lib/cronSchedule";
 
 export default async function DashboardPage() {
@@ -13,14 +18,34 @@ export default async function DashboardPage() {
   const userId = (session!.user as { id: string }).id;
   const aiConfigured = isAiConfigured();
 
-  const history = await prisma.report.findMany({
-    where: { userId, type: "DAILY_DIGEST" },
-    orderBy: { generatedAt: "desc" },
-    take: 14,
-  });
+  const [history, trackRecord] = await Promise.all([
+    prisma.report.findMany({
+      where: { userId, type: "DAILY_DIGEST" },
+      orderBy: { generatedAt: "desc" },
+      take: 14,
+    }),
+    getRatingTrackRecord(userId),
+  ]);
   const reportRow = history[0] ?? null;
   const report: DailyDigest | null = reportRow ? JSON.parse(reportRow.content) : null;
   const pastHistory = history.slice(1);
+
+  const previousReport: DailyDigest | null = pastHistory[0] ? JSON.parse(pastHistory[0].content) : null;
+  const ratingChanges =
+    report && previousReport
+      ? diffRatings(
+          [...report.holdings, ...report.watchlistItems],
+          [...previousReport.holdings, ...previousReport.watchlistItems]
+        )
+      : [];
+
+  const valuePoints = history
+    .map((h) => {
+      const parsed: DailyDigest = JSON.parse(h.content);
+      return parsed.hasBrokerageConnection ? { date: h.generatedAt.toISOString(), value: parsed.totalValue } : null;
+    })
+    .filter((p): p is { date: string; value: number } => p !== null)
+    .reverse();
 
   return (
     <div className="flex flex-col">
@@ -41,8 +66,11 @@ export default async function DashboardPage() {
           </p>
         </Card>
       ) : (
-        <div className="mt-6">
+        <div className="mt-6 flex flex-col gap-4">
+          <ReportDiffBanner changes={ratingChanges} />
+          <PortfolioValueChart points={valuePoints} />
           <DailyDigestView report={report} />
+          <RatingTrackRecord entries={trackRecord.entries} accuratePct={trackRecord.accuratePct} />
         </div>
       )}
 

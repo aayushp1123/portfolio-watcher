@@ -17,6 +17,10 @@ DEPTH REQUIREMENT (critical): Before any risk rating or trend explanation, reaso
 
 SEC FILINGS, INSIDER ACTIVITY & MACRO: You may be given real recent SEC filings, insider transactions, and current macro figures (Fed funds rate, CPI, unemployment) for the user's current holdings — official, genuine data. Use these confidently in allocationCheck.summary and marketTrends where relevant; never invent a filing or macro figure not given.
 
+MARKET CONTEXT (S&P 500 momentum, VIX) & CONGRESSIONAL TRADING: If given, use the S&P 500 (SPY) momentum as a real baseline for judging whether a holding is genuinely out/underperforming the broad market, and the VIX level as the real current market-wide volatility gauge (under 15 calm, 15-25 normal, above 25 elevated fear). You may also be given real recent congressional stock trade disclosures (STOCK Act) for these tickers — genuine, not something to caveat; mention notable buying/selling as one data point among many, never invent a trade not listed.
+
+CONCENTRATION/CORRELATION: If given real computed correlation figures between holdings, use them directly in the allocationCheck.summary's "hidden overlap/concentration risk" callout — a high correlation between two positions is a genuine diversification gap even if they're in nominally different buckets.
+
 EXAMPLE OF EXPECTED TONE AND DEPTH (for calibration only, not real data): "SCHD — allocationCheck should reflect the real % of the account it represents given its live-priced market value. A new idea candidate like a semiconductor ETF: whatItDoes explains it plainly ('a fund holding the largest US chip companies'), whyNow ties to a real structural trend ('AI infrastructure buildout is a multi-year capex cycle, not a one-quarter story'), and ratingReason is specific ('Buy — broad exposure to a durable secular trend without single-company concentration risk')." That is the bar: specific and structural, never a generic "looks promising."
 
 ALLOCATION CHECK: Classify each of the user's current holdings into one of three buckets based on the ticker (broad-market/dividend ETFs = CORE_ETF, established individual growth companies = INDIVIDUAL_GROWTH, smaller/speculative individual companies = SPECULATIVE), compute the actual $ value and % of each bucket, and compare to the user's target percentages. Also flag any hidden overlap/concentration risk (e.g. two holdings both heavily exposed to the same sector).
@@ -82,6 +86,26 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
     ? `Fed funds rate: ${context.macro.fedFundsRate}% (as of ${context.macro.fedFundsDate}). CPI inflation (YoY): ${context.macro.cpiYoyPct?.toFixed(1)}%. Unemployment: ${context.macro.unemploymentRate}% (as of ${context.macro.unemploymentDate}).`
     : "(not configured — reason from general knowledge if macro context is relevant)";
 
+  const marketText = [
+    context.marketMomentum
+      ? `S&P 500 (SPY) ${formatMomentum(context.marketMomentum)}`
+      : "S&P 500 momentum unavailable",
+    context.vix ? `VIX (volatility index) at ${context.vix.price.toFixed(1)}` : "VIX unavailable",
+  ].join(". ");
+
+  const congressList = context.congressTrades
+    .map(
+      (t) =>
+        `- [${t.ticker}] ${t.chamber} member ${t.person}: ${t.type}, ${t.amountRange}, transacted ${t.transactionDate} (disclosed ${t.disclosureDate})`
+    )
+    .join("\n") || "(none in the recent record)";
+
+  const correlationText = context.correlationFlags.length > 0
+    ? context.correlationFlags
+        .map((c) => `- ${c.tickerA} & ${c.tickerB}: ${(c.correlation * 100).toFixed(0)}% correlated over the last 3 months`)
+        .join("\n")
+    : "(none computed — fewer than two holdings with enough price history)";
+
   return `Today's date: ${new Date().toISOString().slice(0, 10)}
 
 CURRENT HOLDINGS:
@@ -103,6 +127,15 @@ ${insiderList}
 
 CURRENT MACRO CONTEXT:
 ${macroText}
+
+CURRENT MARKET CONTEXT:
+${marketText}
+
+RECENT CONGRESSIONAL TRADES (official STOCK Act disclosures, genuine):
+${congressList}
+
+HOLDING CORRELATION (real, computed from 3-month price history):
+${correlationText}
 
 USER'S GOALS:
 ${goalText}

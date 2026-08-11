@@ -3,9 +3,11 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAiConfigured } from "@/lib/gemini";
 import type { WeeklyTrends } from "@/lib/reports/schemas";
+import { diffRatings } from "@/lib/reports/reportDiff";
 import { Card } from "@/components/ui/Card";
 import { WeeklyTrendsView } from "@/components/reports/WeeklyTrendsView";
 import { ReportPageHeader } from "@/components/dashboard/ReportPageHeader";
+import { ReportDiffBanner } from "@/components/dashboard/ReportDiffBanner";
 import { WEEKLY_TRENDS_SCHEDULE, getNextRun } from "@/lib/cronSchedule";
 
 export default async function WeeklyTrendsPage() {
@@ -21,6 +23,9 @@ export default async function WeeklyTrendsPage() {
   const reportRow = history[0] ?? null;
   const report: WeeklyTrends | null = reportRow ? JSON.parse(reportRow.content) : null;
   const pastHistory = history.slice(1);
+  const previousReport: WeeklyTrends | null = pastHistory[0] ? JSON.parse(pastHistory[0].content) : null;
+  const ratingChanges =
+    report && previousReport ? diffRatings(report.watchlistItems, previousReport.watchlistItems) : [];
 
   return (
     <div className="flex flex-col">
@@ -41,7 +46,8 @@ export default async function WeeklyTrendsPage() {
           </p>
         </Card>
       ) : (
-        <div className="mt-6">
+        <div className="mt-6 flex flex-col gap-4">
+          <ReportDiffBanner changes={ratingChanges} />
           <WeeklyTrendsView report={report} />
         </div>
       )}
