@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { searchTickers } from "@/lib/tickers";
+import { useEffect, useState } from "react";
+import { searchTickers, type TickerEntry } from "@/lib/tickers";
 
 export function TickerAutocomplete({
   value,
@@ -13,7 +13,37 @@ export function TickerAutocomplete({
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const matches = open ? searchTickers(value, 15) : [];
+  const [matches, setMatches] = useState<TickerEntry[]>([]);
+
+  useEffect(() => {
+    if (!open || !value.trim()) {
+      setMatches([]);
+      return;
+    }
+
+    // Show the bundled list instantly, then try to widen results from the
+    // free search API (broader coverage) — fall back silently on failure.
+    setMatches(searchTickers(value, 15));
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/tickers/search?q=${encodeURIComponent(value)}`, { signal: controller.signal })
+        .then((res) => res.json())
+        .then((data) => {
+          if (Array.isArray(data?.results) && data.results.length > 0) {
+            setMatches(data.results);
+          }
+        })
+        .catch(() => {
+          // Keep the already-shown static-list matches.
+        });
+    }, 250);
+
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [value, open]);
 
   return (
     <div className="relative">

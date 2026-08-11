@@ -5,13 +5,15 @@ import { weeklyTrendsSchema, toJsonSchema, type WeeklyTrends } from "@/lib/repor
 
 const SYSTEM_PROMPT = `You are producing a weekly research digest for someone building a long-term-growth-focused portfolio who has NEVER invested before. Every financial term needs a short, plain-English explanation inline.
 
-PRICE DATA ONLY (narrow caveat): You do not have live web search, so only the specific dollar prices you state may be stale — use your best last-known approximation, without hedging language cluttering every sentence. A single caveat about prices is shown separately in the UI.
+LIVE PRICES: Current holdings and watchlist tickers below include a LIVE PRICE fetched moments ago from a real market data source when available — treat it as ground truth, no hedging. NEW IDEA candidates you suggest yourself won't have a live price provided (you're the one picking the ticker) — for those, give your best general-knowledge approxPrice and that's expected to be approximate, no need to caveat it further.
 
-ANALYSIS IS FULL-CONFIDENCE (critical): Everything that is NOT a specific live price — trend explanations, risk ratings, Buy/Hold/Sell ratings, allocation math, candidate reasoning — must be written with full analytical confidence and authority, exactly like a professional research note. Do not hedge or undercut your own analysis.
+ANALYSIS IS FULL-CONFIDENCE (critical): Trend explanations, risk ratings, Buy/Hold/Sell ratings, allocation math, candidate reasoning — all written with full analytical confidence and authority, exactly like a professional research note. Do not hedge or undercut your own analysis.
 
 ACCURACY & OBJECTIVITY: No hype, no promotional language for any candidate. Be honest about High-risk picks rather than downplaying them. Grounded, analytical, professional tone throughout.
 
 DEPTH REQUIREMENT (critical): Before any risk rating or trend explanation, reason through: (a) technical momentum, (b) fundamentals, (c) political/regulatory context, (d) historical precedent, (e) relevance to this user's specific goals/buckets. Let this reasoning actually change the conclusion — don't default to a generic answer. Do not print raw indicator numbers, only the plain-English conclusions they lead to.
+
+EXAMPLE OF EXPECTED TONE AND DEPTH (for calibration only, not real data): "SCHD — allocationCheck should reflect the real % of the account it represents given its live-priced market value. A new idea candidate like a semiconductor ETF: whatItDoes explains it plainly ('a fund holding the largest US chip companies'), whyNow ties to a real structural trend ('AI infrastructure buildout is a multi-year capex cycle, not a one-quarter story'), and ratingReason is specific ('Buy — broad exposure to a durable secular trend without single-company concentration risk')." That is the bar: specific and structural, never a generic "looks promising."
 
 ALLOCATION CHECK: Classify each of the user's current holdings into one of three buckets based on the ticker (broad-market/dividend ETFs = CORE_ETF, established individual growth companies = INDIVIDUAL_GROWTH, smaller/speculative individual companies = SPECULATIVE), compute the actual $ value and % of each bucket, and compare to the user's target percentages. Also flag any hidden overlap/concentration risk (e.g. two holdings both heavily exposed to the same sector).
 
@@ -29,7 +31,10 @@ Return ONLY the structured JSON matching the provided schema — no other text. 
 
 function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>): string {
   const holdingsList = context.holdings
-    .map((h) => `- ${h.ticker}: ${h.shares} shares, market value $${h.marketValue.toFixed(2)}`)
+    .map((h) => {
+      const priceInfo = h.livePrice ? `LIVE PRICE $${h.livePrice.price.toFixed(2)}` : "no live price available";
+      return `- ${h.ticker}: ${h.shares} shares, market value $${h.marketValue.toFixed(2)}, ${priceInfo}`;
+    })
     .join("\n");
 
   const goalText = context.goal
@@ -37,7 +42,10 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
     : "(no goal set — use 70% core ETFs / 20% individual growth / 10% speculative as a default assumption and say so)";
 
   const watchlistList = context.watchlist
-    .map((w) => `- ${w.ticker}${w.note ? ` (${w.note})` : ""}`)
+    .map((w) => {
+      const priceInfo = w.livePrice ? `LIVE PRICE $${w.livePrice.price.toFixed(2)}` : "no live price available";
+      return `- ${w.ticker}${w.note ? ` (${w.note})` : ""}, ${priceInfo}`;
+    })
     .join("\n") || "(none)";
 
   return `Today's date: ${new Date().toISOString().slice(0, 10)}
@@ -53,7 +61,7 @@ ${watchlistList}
 USER'S GOALS:
 ${goalText}
 
-Produce the full weekly digest per the schema and system instructions — confident, analytical, professional throughout; only treat specific dollar prices as approximate.`;
+Produce the full weekly digest per the schema and system instructions — confident, analytical, professional throughout, using the live prices provided as ground truth for current holdings/watchlist.`;
 }
 
 export async function generateWeeklyTrends(userId: string): Promise<{ skipped: true; reason: string } | { skipped: false; report: WeeklyTrends }> {
@@ -73,6 +81,7 @@ export async function generateWeeklyTrends(userId: string): Promise<{ skipped: t
       systemInstruction: SYSTEM_PROMPT,
       responseMimeType: "application/json",
       responseJsonSchema: toJsonSchema(weeklyTrendsSchema),
+      thinkingConfig: { thinkingBudget: -1 },
     },
   });
 

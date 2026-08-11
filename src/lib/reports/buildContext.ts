@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getQuotes, type Quote } from "@/lib/quotes";
 
 export interface PortfolioHolding {
   ticker: string;
@@ -6,6 +7,8 @@ export interface PortfolioHolding {
   shares: number;
   marketValue: number;
   costBasis: number | null;
+  /** Real current price from a free live quote lookup — null if the lookup failed. */
+  livePrice: Quote | null;
 }
 
 export interface UserReportContext {
@@ -27,7 +30,7 @@ export interface UserReportContext {
   /** Whether the user has an active Plaid connection at all — distinguishes
    * "connected account with $0 cash" from "no account connected, N/A". */
   hasBrokerageConnection: boolean;
-  watchlist: Array<{ ticker: string; note: string | null }>;
+  watchlist: Array<{ ticker: string; note: string | null; livePrice: Quote | null }>;
 }
 
 /** Builds the per-user context passed into an AI report generation call. Reads
@@ -42,7 +45,14 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
     prisma.watchlistItem.findMany({ where: { userId } }),
   ]);
 
-  const holdings: PortfolioHolding[] = [];
+  type RawHolding = {
+    ticker: string;
+    name: string;
+    shares: number;
+    marketValue: number;
+    costBasis: number | null;
+  };
+  const rawHoldings: RawHolding[] = [];
   let cashAvailable = 0;
 
   for (const item of plaidItems) {
@@ -74,7 +84,7 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
         }
         if (!security.ticker_symbol) continue;
 
-        holdings.push({
+        rawHoldings.push({
           ticker: security.ticker_symbol,
           name: security.name ?? security.ticker_symbol,
           shares: h.quantity,
@@ -86,6 +96,15 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
       // Skip malformed cached holdings for this item rather than failing the whole report.
     }
   }
+
+  // Free live-price lookup for every holding and watchlist ticker, in parallel.
+  const allTickers = [...rawHoldings.map((h) => h.ticker), ...watchlistItems.map((w) => w.ticker)];
+  const quotes = await getQuotes(allTickers);
+
+  const holdings: PortfolioHolding[] = rawHoldings.map((h) => ({
+    ...h,
+    livePrice: quotes.get(h.ticker) ?? null,
+  }));
 
   return {
     userId,
@@ -106,6 +125,10 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
     holdings,
     cashAvailable,
     hasBrokerageConnection: plaidItems.length > 0,
-    watchlist: watchlistItems.map((w) => ({ ticker: w.ticker, note: w.note })),
+    watchlist: watchlistItems.map((w) => ({
+      ticker: w.ticker,
+      note: w.note,
+      livePrice: quotes.get(w.ticker) ?? null,
+    })),
   };
 }
