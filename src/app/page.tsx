@@ -4,6 +4,8 @@ import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { HeroChart } from "@/components/graphics/HeroChart";
+import { IconDigest, IconTrends, IconNews } from "@/components/graphics/FeatureIcons";
 
 export default async function Home() {
   const session = await getServerSession(authOptions);
@@ -34,15 +36,14 @@ export default async function Home() {
 
       <section className="flex flex-col items-center px-4 py-16 text-center">
         <p className="text-xs font-semibold uppercase tracking-widest text-teal-600">
-          Personal Investing Command Center
+          Personal Portfolio Tracker
         </p>
         <h1 className="mt-1 max-w-xl font-[family-name:var(--font-heading)] text-4xl font-bold text-ink-900">
           Portfolio Watcher
         </h1>
         <p className="mt-4 max-w-md text-ink-500">
-          Connect your own brokerage account, set your own goals, and get plain-English, AI-researched
-          daily digests, weekly research, and breaking-news alerts — built around your holdings, not a
-          generic feed.
+          Connect a brokerage account, set your goals and exit rules, and get daily digests, weekly
+          research, and breaking-news alerts written specifically for the positions you actually hold.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
           <Link href="/signup">
@@ -52,6 +53,9 @@ export default async function Home() {
             <Button variant="secondary">See a sample dashboard</Button>
           </Link>
         </div>
+        <div className="mt-12 w-full max-w-xl px-4">
+          <HeroChart />
+        </div>
       </section>
 
       <section className="mx-auto w-full max-w-3xl px-4 py-10">
@@ -60,17 +64,19 @@ export default async function Home() {
         </h2>
         <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Card>
-            <p className="text-xs font-semibold uppercase tracking-wide text-teal-600">Every day</p>
+            <IconDigest className="h-8 w-8" />
+            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-teal-600">Every day</p>
             <h3 className="mt-1 font-[family-name:var(--font-heading)] font-bold text-ink-900">
               Daily Digest
             </h3>
             <p className="mt-2 text-sm text-ink-500">
-              Your total value, a plain-English risk rating on every holding, exit-rule status, dividend
-              notes, and tax considerations — no jargon, no assumed experience.
+              Total value, a Buy/Hold/Sell rating and risk read on every holding, exit-rule status,
+              dividend notes, and tax considerations.
             </p>
           </Card>
           <Card>
-            <p className="text-xs font-semibold uppercase tracking-wide text-teal-600">Every week</p>
+            <IconTrends className="h-8 w-8" />
+            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-teal-600">Every week</p>
             <h3 className="mt-1 font-[family-name:var(--font-heading)] font-bold text-ink-900">
               Weekly Trends
             </h3>
@@ -80,7 +86,8 @@ export default async function Home() {
             </p>
           </Card>
           <Card>
-            <p className="text-xs font-semibold uppercase tracking-wide text-teal-600">As it happens</p>
+            <IconNews className="h-8 w-8" />
+            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-teal-600">As it happens</p>
             <h3 className="mt-1 font-[family-name:var(--font-heading)] font-bold text-ink-900">
               Breaking News
             </h3>
@@ -141,8 +148,7 @@ export default async function Home() {
                 Get reports built specifically around what you own
               </h3>
               <p className="mt-1 text-sm text-ink-500">
-                Every report is researched fresh against your real holdings and your own goals — not a
-                generic market summary.
+                Every report is researched fresh against your actual holdings, cost basis, and goals.
               </p>
             </div>
           </Card>

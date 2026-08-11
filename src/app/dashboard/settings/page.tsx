@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAiConfigured } from "@/lib/anthropic";
+import { isAiConfigured } from "@/lib/gemini";
 import { isPlaidConfigured } from "@/lib/plaid";
 import { ConfigStatus } from "@/components/dashboard/ConfigStatus";
 import { GoalEditor } from "@/components/dashboard/GoalEditor";

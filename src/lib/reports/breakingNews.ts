@@ -1,11 +1,11 @@
-import { getAnthropicClient, getAnthropicModel } from "@/lib/anthropic";
+import { getGeminiClient, getGeminiModel } from "@/lib/gemini";
 import { prisma } from "@/lib/prisma";
 import { buildUserContext } from "@/lib/reports/buildContext";
 import { breakingNewsSchema, toJsonSchema, type BreakingNews } from "@/lib/reports/schemas";
 
-const SYSTEM_PROMPT = `You are an hourly-ish monitor for a user's investment holdings, checking what's changed since the last check — NOT a full recap. The user has NEVER invested before, so any alert needs plain-English explanations.
+const SYSTEM_PROMPT = `You are a once-daily monitor for a user's investment holdings, checking what's changed since the prior day — NOT a full recap. The user has NEVER invested before, so any alert needs plain-English explanations.
 
-CRITICAL FRESHNESS RULE: Only report something as material if it is genuinely fresh (published/updated recently, within roughly the last couple hours) and hasn't already been reported in a prior check (see PRIOR ALERTS below — do not repeat those unless there is a genuine new development). Do not re-flag something just because it's still true or important.
+CRITICAL FRESHNESS RULE: Only report something as material if it is genuinely fresh (published/updated within roughly the last 24-30 hours, since this runs once per day) and hasn't already been reported in a prior check (see PRIOR ALERTS below — do not repeat those unless there is a genuine new development). Do not re-flag something just because it's still true or important.
 
 SOURCE REQUIREMENT: Only reliable sources — official company sources, Yahoo Finance, Google Finance, Bloomberg, Reuters, CNBC, MarketWatch, WSJ, Barron's, AP, established brokerages, Morningstar, stockanalysis.com. No blogs, forums, or social media. Only report something as material if verifiable from a credible source.
 
@@ -54,27 +54,26 @@ export async function generateBreakingNews(userId: string): Promise<{ skipped: t
     }
   });
 
-  const client = getAnthropicClient();
-  const model = getAnthropicModel();
+  const client = getGeminiClient();
+  const model = getGeminiModel();
 
-  const response = await client.messages.create({
+  const response = await client.models.generateContent({
     model,
-    max_tokens: 4000,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: buildUserMessage(context, priorAlerts) }],
-    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 10 }],
-    output_config: {
-      format: { type: "json_schema", schema: toJsonSchema(breakingNewsSchema) },
-      effort: "medium",
+    contents: [{ role: "user", parts: [{ text: buildUserMessage(context, priorAlerts) }] }],
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseJsonSchema: toJsonSchema(breakingNewsSchema),
     },
   });
 
-  const textBlock = response.content.find((b) => b.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("No text content in Anthropic response");
+  const text = response.text;
+  if (!text) {
+    throw new Error("No text content in Gemini response");
   }
 
-  const report = breakingNewsSchema.parse(JSON.parse(textBlock.text));
+  const report = breakingNewsSchema.parse(JSON.parse(text));
 
   await prisma.report.create({
     data: {
@@ -84,8 +83,8 @@ export async function generateBreakingNews(userId: string): Promise<{ skipped: t
       content: JSON.stringify(report),
       hasMaterialEvents: report.hasMaterialEvents,
       model,
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
+      inputTokens: response.usageMetadata?.promptTokenCount ?? null,
+      outputTokens: response.usageMetadata?.candidatesTokenCount ?? null,
     },
   });
 

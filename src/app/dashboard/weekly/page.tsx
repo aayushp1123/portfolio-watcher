@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAiConfigured } from "@/lib/anthropic";
+import { isAiConfigured } from "@/lib/gemini";
 import type { WeeklyTrends } from "@/lib/reports/schemas";
 import { Card } from "@/components/ui/Card";
 import { GenerateButton } from "@/components/dashboard/GenerateButton";
@@ -43,7 +43,7 @@ export default async function WeeklyTrendsPage() {
             No research digest yet.{" "}
             {aiConfigured
               ? "Click Generate Report above to research this week's trends."
-              : "Add your Anthropic API key in Settings, then click Generate Report."}
+              : "Add your Gemini API key in Settings, then click Generate Report."}
           </p>
         </Card>
       ) : (

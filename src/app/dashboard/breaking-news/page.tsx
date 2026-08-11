@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAiConfigured } from "@/lib/anthropic";
+import { isAiConfigured } from "@/lib/gemini";
 import type { BreakingNews } from "@/lib/reports/schemas";
 import { GenerateButton } from "@/components/dashboard/GenerateButton";
 import { BreakingNewsStatusCard, BreakingNewsAlerts } from "@/components/reports/BreakingNewsView";
@@ -51,7 +51,7 @@ export default async function BreakingNewsPage() {
           notConfiguredMessage={
             aiConfigured
               ? "Click Check Now to run your first check."
-              : "Add your Anthropic API key in Settings to enable this."
+              : "Add your Gemini API key in Settings to enable this."
           }
         />
       </div>

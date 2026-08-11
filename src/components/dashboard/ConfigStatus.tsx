@@ -29,11 +29,11 @@ export function ConfigStatus({
         </div>
         <div className="flex items-center justify-between gap-3 rounded-lg border border-line px-3.5 py-2.5">
           <div>
-            <p className="font-medium text-ink-900">AI Reports (Anthropic)</p>
+            <p className="font-medium text-ink-900">AI Reports (Gemini)</p>
             <p className="text-sm text-ink-500">
               {aiConfigured
-                ? "Configured — report generation and the scheduler are active."
-                : "Add ANTHROPIC_API_KEY to .env when you're ready (console.anthropic.com — this is the one real cost)."}
+                ? "Configured — report generation and the daily/weekly schedule are active."
+                : "Add GEMINI_API_KEY to .env when you're ready (aistudio.google.com/apikey — free tier, no billing required)."}
             </p>
           </div>
           <Pill tone={aiConfigured ? "good" : "neutral"}>

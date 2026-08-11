@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { isAiConfigured } from "@/lib/anthropic";
+import { isAiConfigured } from "@/lib/gemini";
 import { generateDailyDigest } from "@/lib/reports/dailyDigest";
 import { generateWeeklyTrends } from "@/lib/reports/weeklyTrends";
 import { generateBreakingNews } from "@/lib/reports/breakingNews";
@@ -13,11 +13,11 @@ export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  // Checked first, before touching the Anthropic client at all — this route
+  // Checked first, before touching the Gemini client at all — this route
   // must be a total no-op with no external call when no key is configured.
   if (!isAiConfigured()) {
     return NextResponse.json(
-      { error: "AI reports are not configured. Add ANTHROPIC_API_KEY to enable this." },
+      { error: "AI reports are not configured. Add GEMINI_API_KEY to enable this." },
       { status: 503 }
     );
   }

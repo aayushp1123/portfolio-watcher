@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAiConfigured } from "@/lib/anthropic";
+import { isAiConfigured } from "@/lib/gemini";
 import type { DailyDigest } from "@/lib/reports/schemas";
 import { Card } from "@/components/ui/Card";
 import { GenerateButton } from "@/components/dashboard/GenerateButton";
@@ -43,7 +43,7 @@ export default async function DashboardPage() {
             No digest yet.{" "}
             {aiConfigured
               ? "Click Generate Report above to research your holdings and build your first digest."
-              : "Once you add your Anthropic API key and connect a brokerage account, click Generate Report to build your first digest."}
+              : "Once you add your Gemini API key and connect a brokerage account, click Generate Report to build your first digest."}
           </p>
         </Card>
       ) : (

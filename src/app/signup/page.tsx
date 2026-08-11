@@ -59,7 +59,7 @@ export default function SignupPage() {
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <p className="text-xs font-semibold uppercase tracking-widest text-teal-600">
-            Personal Investing Command Center
+            Personal Portfolio Tracker
           </p>
           <h1 className="mt-1 font-[family-name:var(--font-heading)] text-3xl font-bold text-ink-900">
             Portfolio Watcher

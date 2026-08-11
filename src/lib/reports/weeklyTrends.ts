@@ -1,4 +1,4 @@
-import { getAnthropicClient, getAnthropicModel } from "@/lib/anthropic";
+import { getGeminiClient, getGeminiModel } from "@/lib/gemini";
 import { prisma } from "@/lib/prisma";
 import { buildUserContext } from "@/lib/reports/buildContext";
 import { weeklyTrendsSchema, toJsonSchema, type WeeklyTrends } from "@/lib/reports/schemas";
@@ -50,27 +50,26 @@ export async function generateWeeklyTrends(userId: string): Promise<{ skipped: t
     return { skipped: true, reason: "Connect a brokerage account or set your goals first." };
   }
 
-  const client = getAnthropicClient();
-  const model = getAnthropicModel();
+  const client = getGeminiClient();
+  const model = getGeminiModel();
 
-  const response = await client.messages.create({
+  const response = await client.models.generateContent({
     model,
-    max_tokens: 8000,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: buildUserMessage(context) }],
-    tools: [{ type: "web_search_20260209", name: "web_search", max_uses: 15 }],
-    output_config: {
-      format: { type: "json_schema", schema: toJsonSchema(weeklyTrendsSchema) },
-      effort: "high",
+    contents: [{ role: "user", parts: [{ text: buildUserMessage(context) }] }],
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseJsonSchema: toJsonSchema(weeklyTrendsSchema),
     },
   });
 
-  const textBlock = response.content.find((b) => b.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("No text content in Anthropic response");
+  const text = response.text;
+  if (!text) {
+    throw new Error("No text content in Gemini response");
   }
 
-  const report = weeklyTrendsSchema.parse(JSON.parse(textBlock.text));
+  const report = weeklyTrendsSchema.parse(JSON.parse(text));
 
   await prisma.report.create({
     data: {
@@ -79,8 +78,8 @@ export async function generateWeeklyTrends(userId: string): Promise<{ skipped: t
       schemaVersion: 2,
       content: JSON.stringify(report),
       model,
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
+      inputTokens: response.usageMetadata?.promptTokenCount ?? null,
+      outputTokens: response.usageMetadata?.candidatesTokenCount ?? null,
     },
   });
 

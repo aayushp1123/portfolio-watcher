@@ -1,4 +1,4 @@
-import { getAnthropicClient, getAnthropicModel } from "@/lib/anthropic";
+import { getGeminiClient, getGeminiModel } from "@/lib/gemini";
 import { prisma } from "@/lib/prisma";
 import { buildUserContext } from "@/lib/reports/buildContext";
 import { dailyDigestSchema, toJsonSchema, type DailyDigest } from "@/lib/reports/schemas";
@@ -61,34 +61,26 @@ export async function generateDailyDigest(userId: string): Promise<{ skipped: tr
     return { skipped: true, reason: "No holdings connected yet — nothing to research." };
   }
 
-  const client = getAnthropicClient();
-  const model = getAnthropicModel();
+  const client = getGeminiClient();
+  const model = getGeminiModel();
 
-  const response = await client.messages.create({
+  const response = await client.models.generateContent({
     model,
-    max_tokens: 8000,
-    system: SYSTEM_PROMPT,
-    messages: [{ role: "user", content: buildUserMessage(context) }],
-    tools: [
-      {
-        type: "web_search_20260209",
-        name: "web_search",
-        max_uses: 15,
-      },
-    ],
-    output_config: {
-      format: { type: "json_schema", schema: toJsonSchema(dailyDigestSchema) },
-      effort: "high",
+    contents: [{ role: "user", parts: [{ text: buildUserMessage(context) }] }],
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      tools: [{ googleSearch: {} }],
+      responseMimeType: "application/json",
+      responseJsonSchema: toJsonSchema(dailyDigestSchema),
     },
   });
 
-  const textBlock = response.content.find((b) => b.type === "text");
-  if (!textBlock || textBlock.type !== "text") {
-    throw new Error("No text content in Anthropic response");
+  const text = response.text;
+  if (!text) {
+    throw new Error("No text content in Gemini response");
   }
 
-  const parsedJson = JSON.parse(textBlock.text);
-  const report = dailyDigestSchema.parse(parsedJson);
+  const report = dailyDigestSchema.parse(JSON.parse(text));
 
   await prisma.report.create({
     data: {
@@ -97,8 +89,8 @@ export async function generateDailyDigest(userId: string): Promise<{ skipped: tr
       schemaVersion: 2,
       content: JSON.stringify(report),
       model,
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
+      inputTokens: response.usageMetadata?.promptTokenCount ?? null,
+      outputTokens: response.usageMetadata?.candidatesTokenCount ?? null,
     },
   });
 

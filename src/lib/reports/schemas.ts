@@ -85,7 +85,9 @@ export const breakingNewsSchema = z.object({
 });
 export type BreakingNews = z.infer<typeof breakingNewsSchema>;
 
-/** Converts a Zod object schema to a plain JSON Schema for output_config.format. */
+/** Converts a Zod object schema to a plain JSON Schema for Gemini's responseJsonSchema. */
 export function toJsonSchema(schema: z.ZodType): Record<string, unknown> {
-  return z.toJSONSchema(schema, { target: "draft-7" }) as Record<string, unknown>;
+  const json = z.toJSONSchema(schema, { target: "draft-7" }) as Record<string, unknown>;
+  delete json.$schema;
+  return json;
 }
