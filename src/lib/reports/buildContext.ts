@@ -33,7 +33,7 @@ export interface UserReportContext {
 /** Builds the per-user context passed into an AI report generation call. Reads
  * cached Plaid holdings data (from the last successful sync) rather than
  * calling Plaid live on every report — keeps report generation to a single
- * external dependency (Anthropic) per run. */
+ * external dependency (Gemini) per run. */
 export async function buildUserContext(userId: string): Promise<UserReportContext> {
   const [goal, exitRules, plaidItems, watchlistItems] = await Promise.all([
     prisma.goal.findUnique({ where: { userId } }),

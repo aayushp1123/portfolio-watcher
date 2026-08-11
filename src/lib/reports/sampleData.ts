@@ -1,7 +1,7 @@
 import type { DailyDigest, WeeklyTrends, BreakingNews } from "./schemas";
 
 /**
- * Hardcoded fixtures — never touch the network or the Anthropic API.
+ * Hardcoded fixtures — never touch the network or the Gemini API.
  * Shown on the public /sample pages so a visitor can see what their own
  * dashboard would look like before connecting an account.
  */

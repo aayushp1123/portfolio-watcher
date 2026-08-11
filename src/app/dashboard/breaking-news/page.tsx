@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { isAiConfigured } from "@/lib/gemini";
 import type { BreakingNews } from "@/lib/reports/schemas";
 import { BreakingNewsStatusCard, BreakingNewsAlerts } from "@/components/reports/BreakingNewsView";
+import { ReportPageHeader } from "@/components/dashboard/ReportPageHeader";
+import { BREAKING_NEWS_SCHEDULE, getNextRun } from "@/lib/cronSchedule";
 
 export default async function BreakingNewsPage() {
   const session = await getServerSession(authOptions);
@@ -25,24 +27,15 @@ export default async function BreakingNewsPage() {
   const latestReport: BreakingNews | null = latest ? JSON.parse(latest.content) : null;
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-teal-600">
-            Breaking News &amp; Big Moves Watch
-          </p>
-          <h1 className="mt-1 font-[family-name:var(--font-heading)] text-3xl font-bold text-ink-900">
-            Live Watch
-          </h1>
-          {latest && (
-            <p className="mt-1 text-xs text-ink-500">
-              Last checked {new Date(latest.generatedAt).toLocaleString()}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-6">
+    <div className="flex flex-col">
+      <ReportPageHeader
+        eyebrow="Breaking News & Big Moves Watch"
+        title="Live Watch"
+        updatedAt={latest ? new Date(latest.generatedAt) : null}
+        nextRun={getNextRun(BREAKING_NEWS_SCHEDULE)}
+      />
+      <div className="mx-auto w-full max-w-3xl px-4 py-10">
+      <div>
         <BreakingNewsStatusCard
           hasChecked={!!latest}
           report={latestReport}
@@ -83,6 +76,7 @@ export default async function BreakingNewsPage() {
           </div>
         </section>
       )}
+      </div>
     </div>
   );
 }

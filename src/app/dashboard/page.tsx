@@ -5,6 +5,8 @@ import { isAiConfigured } from "@/lib/gemini";
 import type { DailyDigest } from "@/lib/reports/schemas";
 import { Card } from "@/components/ui/Card";
 import { DailyDigestView } from "@/components/reports/DailyDigestView";
+import { ReportPageHeader } from "@/components/dashboard/ReportPageHeader";
+import { DAILY_DIGEST_SCHEDULE, getNextRun } from "@/lib/cronSchedule";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -21,23 +23,14 @@ export default async function DashboardPage() {
   const pastHistory = history.slice(1);
 
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-widest text-teal-600">
-            Daily Portfolio Digest
-          </p>
-          <h1 className="mt-1 font-[family-name:var(--font-heading)] text-3xl font-bold text-ink-900">
-            Your Portfolio, Today
-          </h1>
-          {reportRow && (
-            <p className="mt-1 text-xs text-ink-500">
-              Last updated {new Date(reportRow.generatedAt).toLocaleString()}
-            </p>
-          )}
-        </div>
-      </div>
-
+    <div className="flex flex-col">
+      <ReportPageHeader
+        eyebrow="Daily Portfolio Digest"
+        title="Your Portfolio, Today"
+        updatedAt={reportRow ? new Date(reportRow.generatedAt) : null}
+        nextRun={getNextRun(DAILY_DIGEST_SCHEDULE)}
+      />
+      <div className="mx-auto w-full max-w-3xl px-4 py-10">
       {!report ? (
         <Card className="mt-6">
           <p className="text-sm text-ink-700">
@@ -79,6 +72,7 @@ export default async function DashboardPage() {
           </div>
         </section>
       )}
+      </div>
     </div>
   );
 }
