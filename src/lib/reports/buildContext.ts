@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getQuotes, type Quote } from "@/lib/quotes";
+import { getPersonalizedNews, type NewsArticle } from "@/lib/newsFeed";
 
 export interface PortfolioHolding {
   ticker: string;
@@ -31,6 +32,9 @@ export interface UserReportContext {
    * "connected account with $0 cash" from "no account connected, N/A". */
   hasBrokerageConnection: boolean;
   watchlist: Array<{ ticker: string; note: string | null; livePrice: Quote | null }>;
+  /** Real, recently-published headlines for the user's own tickers, free via
+   * RSS — supplemental grounding since there's no live search tool. */
+  recentHeadlines: NewsArticle[];
 }
 
 /** Builds the per-user context passed into an AI report generation call. Reads
@@ -99,7 +103,10 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
 
   // Free live-price lookup for every holding and watchlist ticker, in parallel.
   const allTickers = [...rawHoldings.map((h) => h.ticker), ...watchlistItems.map((w) => w.ticker)];
-  const quotes = await getQuotes(allTickers);
+  const [quotes, recentHeadlines] = await Promise.all([
+    getQuotes(allTickers),
+    allTickers.length > 0 ? getPersonalizedNews(allTickers, 12) : Promise.resolve([]),
+  ]);
 
   const holdings: PortfolioHolding[] = rawHoldings.map((h) => ({
     ...h,
@@ -130,5 +137,6 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
       note: w.note,
       livePrice: quotes.get(w.ticker) ?? null,
     })),
+    recentHeadlines,
   };
 }

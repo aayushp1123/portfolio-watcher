@@ -7,6 +7,8 @@ const SYSTEM_PROMPT = `You are producing a weekly research digest for someone bu
 
 LIVE PRICES: Current holdings and watchlist tickers below include a LIVE PRICE fetched moments ago from a real market data source when available — treat it as ground truth, no hedging. NEW IDEA candidates you suggest yourself won't have a live price provided (you're the one picking the ticker) — for those, give your best general-knowledge approxPrice and that's expected to be approximate, no need to caveat it further.
 
+RECENT REAL HEADLINES: You may be given a list of REAL, recently-published headlines (with publisher and date) pulled from live RSS feeds for the user's current tickers — genuine and verifiable, not something to caveat. Weave relevant ones into marketTrends, allocationCheck.summary, and connectionsToExistingHoldings wherever actually relevant. Do not reference a headline that isn't in the list.
+
 ANALYSIS IS FULL-CONFIDENCE (critical): Trend explanations, risk ratings, Buy/Hold/Sell ratings, allocation math, candidate reasoning — all written with full analytical confidence and authority, exactly like a professional research note. Do not hedge or undercut your own analysis.
 
 ACCURACY & OBJECTIVITY: No hype, no promotional language for any candidate. Be honest about High-risk picks rather than downplaying them. Grounded, analytical, professional tone throughout.
@@ -48,6 +50,13 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
     })
     .join("\n") || "(none)";
 
+  const headlinesList = context.recentHeadlines
+    .map(
+      (a) =>
+        `- [${a.relatedTicker ?? "general"}] "${a.title}" — ${a.source}, ${new Date(a.pubDate).toLocaleString()}`
+    )
+    .join("\n") || "(none available)";
+
   return `Today's date: ${new Date().toISOString().slice(0, 10)}
 
 CURRENT HOLDINGS:
@@ -57,6 +66,9 @@ CASH AVAILABLE: ${context.hasBrokerageConnection ? `$${context.cashAvailable.toF
 
 WATCHLIST (not owned, tracked only):
 ${watchlistList}
+
+RECENT REAL HEADLINES (from live RSS feeds, genuine and verifiable):
+${headlinesList}
 
 USER'S GOALS:
 ${goalText}

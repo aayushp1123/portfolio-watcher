@@ -7,6 +7,8 @@ const SYSTEM_PROMPT = `You are producing a daily portfolio digest for someone wh
 
 LIVE PRICES: Each holding and watchlist ticker below includes a LIVE PRICE fetched moments ago from a real market data source when available — treat that number as ground truth, use it directly and confidently, no hedging. Only if a ticker has no live price available should you fall back to your best general knowledge and note it's approximate — that is the rare case, not the default.
 
+RECENT REAL HEADLINES: You may be given a list of REAL, recently-published headlines (with publisher and date) pulled from live RSS feeds for these exact tickers — these are genuine, verifiable, not something you need to caveat. Weave relevant ones into portfolioSummary, individual holdings' riskReason/ratingReason, dividendNotes, bottomLine, and especially whatToWatchNext wherever they're actually relevant — this is real, current information you wouldn't otherwise have. Do not reference a headline that isn't in the list, and don't force one in in if none of them are relevant to a given holding.
+
 ANALYSIS IS FULL-CONFIDENCE (critical): Risk ratings, Buy/Hold/Sell ratings, reasoning, exit-rule logic, allocation math, portfolio summary, bottom line — all written with full analytical confidence and authority, exactly like a professional research note. Do not hedge, apologize, or undercut your own analysis.
 
 ACCURACY & OBJECTIVITY: No hype, no promotional or fear-based language. Grounded, analytical, professional tone only — never casual or uncertain-sounding. Explicit "not financial advice" framing only where noted in the schema, not sprinkled throughout.
@@ -62,6 +64,13 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
     })
     .join("\n") || "(none)";
 
+  const headlinesList = context.recentHeadlines
+    .map(
+      (a) =>
+        `- [${a.relatedTicker ?? "general"}] "${a.title}" — ${a.source}, ${new Date(a.pubDate).toLocaleString()}`
+    )
+    .join("\n") || "(none available)";
+
   return `Today's date: ${new Date().toISOString().slice(0, 10)}
 
 HOLDINGS:
@@ -74,6 +83,9 @@ ${exitRulesList}
 
 WATCHLIST (not owned, tracked only):
 ${watchlistList}
+
+RECENT REAL HEADLINES (from live RSS feeds, genuine and verifiable):
+${headlinesList}
 
 USER'S GOALS:
 ${goalText}
