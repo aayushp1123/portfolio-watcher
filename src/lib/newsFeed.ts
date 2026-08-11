@@ -9,7 +9,12 @@ export interface NewsArticle {
   title: string;
   link: string;
   pubDate: string;
+  /** The actual publisher/feed source (e.g. "Yahoo Finance"). Note: these
+   * RSS feeds don't expose a per-article author/byline, so there's no
+   * author field here — showing one would mean inventing it. */
   source: string;
+  /** Which of the user's tickers this article came from, if personalized. */
+  relatedTicker: string | null;
 }
 
 const REVALIDATE_SECONDS = 3600; // matches Breaking News' hourly cadence
@@ -31,19 +36,20 @@ function extractTag(block: string, tag: string): string {
   return decodeEntities(raw);
 }
 
-function parseRss(xml: string, source: string): NewsArticle[] {
+function parseRss(xml: string, relatedTicker: string | null): NewsArticle[] {
   const items = xml.match(/<item>[\s\S]*?<\/item>/g) ?? [];
   return items
     .map((block) => ({
       title: extractTag(block, "title"),
       link: extractTag(block, "link"),
       pubDate: extractTag(block, "pubDate"),
-      source,
+      source: "Yahoo Finance",
+      relatedTicker,
     }))
     .filter((a) => a.title && a.link);
 }
 
-async function fetchFeed(url: string, source: string): Promise<NewsArticle[]> {
+async function fetchFeed(url: string, relatedTicker: string | null): Promise<NewsArticle[]> {
   try {
     const res = await fetch(url, {
       headers: { "User-Agent": "Mozilla/5.0" },
@@ -51,7 +57,7 @@ async function fetchFeed(url: string, source: string): Promise<NewsArticle[]> {
       signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) return [];
-    return parseRss(await res.text(), source);
+    return parseRss(await res.text(), relatedTicker);
   } catch {
     return [];
   }
@@ -70,7 +76,7 @@ function dedupeAndSort(articles: NewsArticle[], limit: number): NewsArticle[] {
 
 /** General market headlines — used when logged out or no personal tickers yet. */
 export async function getGeneralMarketNews(limit = 8): Promise<NewsArticle[]> {
-  const articles = await fetchFeed("https://finance.yahoo.com/news/rssindex", "Yahoo Finance");
+  const articles = await fetchFeed("https://finance.yahoo.com/news/rssindex", null);
   return dedupeAndSort(articles, limit);
 }
 

@@ -1,12 +1,16 @@
 import type { NewsArticle } from "@/lib/newsFeed";
 import { Card } from "@/components/ui/Card";
+import { Pill } from "@/components/ui/Pill";
 
-function timeAgo(pubDate: string): string {
-  const diffMs = Date.now() - new Date(pubDate).getTime();
-  const hours = Math.round(diffMs / 3600000);
-  if (hours < 1) return "just now";
-  if (hours < 24) return `${hours}h ago`;
-  return `${Math.round(hours / 24)}d ago`;
+function formatDateTime(pubDate: string): string {
+  const date = new Date(pubDate);
+  if (isNaN(date.getTime())) return pubDate;
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 export function NewsSidebar({ articles }: { articles: NewsArticle[] }) {
@@ -28,9 +32,12 @@ export function NewsSidebar({ articles }: { articles: NewsArticle[] }) {
               className="block rounded-lg border border-line px-3 py-2.5 transition-colors hover:border-teal-600"
             >
               <p className="text-sm font-medium leading-snug text-ink-900">{a.title}</p>
-              <p className="mt-1 text-xs text-ink-500">
-                {a.source} · {timeAgo(a.pubDate)}
-              </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="text-xs text-ink-500">
+                  {a.source} · {formatDateTime(a.pubDate)}
+                </span>
+                {a.relatedTicker && <Pill tone="neutral">{a.relatedTicker}</Pill>}
+              </div>
             </a>
           ))}
         </div>
