@@ -17,15 +17,17 @@ export function DashboardNav() {
 
   return (
     <nav className="sticky top-0 z-10 border-b border-line bg-paper-50/95 backdrop-blur">
-      <div className="mx-auto grid max-w-3xl grid-cols-[1fr_auto_1fr] items-center gap-3 px-4 py-3">
-        <Link href="/dashboard" className="flex items-center gap-2 justify-self-start">
-          <LogoMark className="h-6 w-6" />
-          <span className="font-[family-name:var(--font-heading)] text-sm font-bold text-ink-900">
-            Portfolio Watcher
-          </span>
-        </Link>
+      <div className="mx-auto flex max-w-3xl items-center px-4 py-3">
+        <div className="flex flex-1 items-center">
+          <Link href="/" className="flex items-center gap-2">
+            <LogoMark className="h-6 w-6" />
+            <span className="font-[family-name:var(--font-heading)] text-sm font-bold text-ink-900">
+              Portfolio Watcher
+            </span>
+          </Link>
+        </div>
 
-        <div className="flex flex-wrap justify-center gap-1.5">
+        <div className="flex flex-1 flex-wrap justify-center gap-1.5">
           {links.map((link) => {
             const active = pathname === link.href;
             return (
@@ -44,12 +46,14 @@ export function DashboardNav() {
           })}
         </div>
 
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          className="justify-self-end text-sm text-ink-500 hover:text-crit-600"
-        >
-          Log out
-        </button>
+        <div className="flex flex-1 items-center justify-end">
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="text-sm text-ink-500 hover:text-crit-600"
+          >
+            Log out
+          </button>
+        </div>
       </div>
     </nav>
   );

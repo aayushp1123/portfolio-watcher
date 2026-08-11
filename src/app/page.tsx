@@ -1,5 +1,4 @@
 import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
 import Link from "next/link";
 import { authOptions } from "@/lib/auth";
 import { Button } from "@/components/ui/Button";
@@ -9,9 +8,7 @@ import { IconDigest, IconTrends, IconNews } from "@/components/graphics/FeatureI
 
 export default async function Home() {
   const session = await getServerSession(authOptions);
-  if (session) {
-    redirect("/dashboard");
-  }
+  const loggedIn = !!session;
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
@@ -20,17 +17,23 @@ export default async function Home() {
           <span className="font-[family-name:var(--font-heading)] text-sm font-bold text-ink-900">
             Portfolio Watcher
           </span>
-          <div className="flex items-center gap-4">
-            <Link href="/sample" className="text-sm font-semibold text-ink-700 hover:text-teal-600">
-              See a sample dashboard
+          {loggedIn ? (
+            <Link href="/dashboard">
+              <Button>Go to Dashboard</Button>
             </Link>
-            <Link href="/login" className="text-sm text-ink-500 hover:text-teal-600">
-              Log in
-            </Link>
-            <Link href="/signup">
-              <Button>Sign up free</Button>
-            </Link>
-          </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <Link href="/sample" className="text-sm font-semibold text-ink-700 hover:text-teal-600">
+                See a sample dashboard
+              </Link>
+              <Link href="/login" className="text-sm text-ink-500 hover:text-teal-600">
+                Log in
+              </Link>
+              <Link href="/signup">
+                <Button>Sign up free</Button>
+              </Link>
+            </div>
+          )}
         </div>
       </nav>
 
@@ -46,12 +49,20 @@ export default async function Home() {
           research, and breaking-news alerts written specifically for the positions you actually hold.
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Link href="/signup">
-            <Button>Create a free account</Button>
-          </Link>
-          <Link href="/sample">
-            <Button variant="secondary">See a sample dashboard</Button>
-          </Link>
+          {loggedIn ? (
+            <Link href="/dashboard">
+              <Button>Go to Dashboard</Button>
+            </Link>
+          ) : (
+            <>
+              <Link href="/signup">
+                <Button>Create a free account</Button>
+              </Link>
+              <Link href="/sample">
+                <Button variant="secondary">See a sample dashboard</Button>
+              </Link>
+            </>
+          )}
         </div>
         <div className="mt-12 w-full max-w-xl px-4">
           <HeroChart />
@@ -97,13 +108,15 @@ export default async function Home() {
             </p>
           </Card>
         </div>
-        <p className="mt-6 text-center text-sm text-ink-500">
-          Not sure what any of that looks like yet?{" "}
-          <Link href="/sample" className="font-semibold text-teal-600 hover:underline">
-            Walk through a sample dashboard
-          </Link>{" "}
-          with realistic example data — no account needed.
-        </p>
+        {!loggedIn && (
+          <p className="mt-6 text-center text-sm text-ink-500">
+            Not sure what any of that looks like yet?{" "}
+            <Link href="/sample" className="font-semibold text-teal-600 hover:underline">
+              Walk through a sample dashboard
+            </Link>{" "}
+            with realistic example data — no account needed.
+          </p>
+        )}
       </section>
 
       <section className="mx-auto w-full max-w-3xl px-4 py-10">
