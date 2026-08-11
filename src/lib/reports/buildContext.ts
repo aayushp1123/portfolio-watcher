@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import { getQuotes, type Quote } from "@/lib/quotes";
+import { getQuotes, getMomentums, type Quote, type Momentum } from "@/lib/quotes";
 import { getPersonalizedNews, type NewsArticle } from "@/lib/newsFeed";
+import { getMaterialFilings, getInsiderActivity, type SecFiling } from "@/lib/secEdgar";
+import { getMacroSnapshot, type MacroSnapshot } from "@/lib/fred";
 
 export interface PortfolioHolding {
   ticker: string;
@@ -10,6 +12,8 @@ export interface PortfolioHolding {
   costBasis: number | null;
   /** Real current price from a free live quote lookup — null if the lookup failed. */
   livePrice: Quote | null;
+  /** Real, computed technical signals from actual daily closes — null if unavailable. */
+  momentum: Momentum | null;
 }
 
 export interface UserReportContext {
@@ -31,10 +35,16 @@ export interface UserReportContext {
   /** Whether the user has an active Plaid connection at all — distinguishes
    * "connected account with $0 cash" from "no account connected, N/A". */
   hasBrokerageConnection: boolean;
-  watchlist: Array<{ ticker: string; note: string | null; livePrice: Quote | null }>;
+  watchlist: Array<{ ticker: string; note: string | null; livePrice: Quote | null; momentum: Momentum | null }>;
   /** Real, recently-published headlines for the user's own tickers, free via
    * RSS — supplemental grounding since there's no live search tool. */
   recentHeadlines: NewsArticle[];
+  /** Real SEC filings (8-K/10-Q/10-K) for the user's tickers — official, free. */
+  materialFilings: SecFiling[];
+  /** Real insider transactions (Form 4/144) for the user's tickers. */
+  insiderActivity: SecFiling[];
+  /** Real macro figures (Fed funds rate, CPI, unemployment) — null if FRED_API_KEY isn't set. */
+  macro: MacroSnapshot | null;
 }
 
 /** Builds the per-user context passed into an AI report generation call. Reads
@@ -101,16 +111,23 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
     }
   }
 
-  // Free live-price lookup for every holding and watchlist ticker, in parallel.
   const allTickers = [...rawHoldings.map((h) => h.ticker), ...watchlistItems.map((w) => w.ticker)];
-  const [quotes, recentHeadlines] = await Promise.all([
+
+  // All free, unauthenticated (except macro, which no-ops without a key) —
+  // fetched in parallel to keep report generation latency reasonable.
+  const [quotes, momentums, recentHeadlines, materialFilings, insiderActivity, macro] = await Promise.all([
     getQuotes(allTickers),
+    getMomentums(allTickers),
     allTickers.length > 0 ? getPersonalizedNews(allTickers, 12) : Promise.resolve([]),
+    allTickers.length > 0 ? getMaterialFilings(allTickers) : Promise.resolve([]),
+    allTickers.length > 0 ? getInsiderActivity(allTickers) : Promise.resolve([]),
+    getMacroSnapshot(),
   ]);
 
   const holdings: PortfolioHolding[] = rawHoldings.map((h) => ({
     ...h,
     livePrice: quotes.get(h.ticker) ?? null,
+    momentum: momentums.get(h.ticker) ?? null,
   }));
 
   return {
@@ -136,7 +153,11 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
       ticker: w.ticker,
       note: w.note,
       livePrice: quotes.get(w.ticker) ?? null,
+      momentum: momentums.get(w.ticker) ?? null,
     })),
     recentHeadlines,
+    materialFilings,
+    insiderActivity,
+    macro,
   };
 }

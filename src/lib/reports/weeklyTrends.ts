@@ -13,7 +13,9 @@ ANALYSIS IS FULL-CONFIDENCE (critical): Trend explanations, risk ratings, Buy/Ho
 
 ACCURACY & OBJECTIVITY: No hype, no promotional language for any candidate. Be honest about High-risk picks rather than downplaying them. Grounded, analytical, professional tone throughout.
 
-DEPTH REQUIREMENT (critical): Before any risk rating or trend explanation, reason through: (a) technical momentum, (b) fundamentals, (c) political/regulatory context, (d) historical precedent, (e) relevance to this user's specific goals/buckets. Let this reasoning actually change the conclusion — don't default to a generic answer. Do not print raw indicator numbers, only the plain-English conclusions they lead to.
+DEPTH REQUIREMENT (critical): Before any risk rating or trend explanation, reason through: (a) technical momentum — use the REAL computed MOMENTUM figures given for current holdings (1mo/3mo % change, position vs. 20/50-day averages) as ground truth, (b) fundamentals, (c) political/regulatory context, (d) historical precedent, (e) relevance to this user's specific goals/buckets. Let this reasoning actually change the conclusion — don't default to a generic answer. Do not print raw indicator numbers, only the plain-English conclusions they lead to.
+
+SEC FILINGS, INSIDER ACTIVITY & MACRO: You may be given real recent SEC filings, insider transactions, and current macro figures (Fed funds rate, CPI, unemployment) for the user's current holdings — official, genuine data. Use these confidently in allocationCheck.summary and marketTrends where relevant; never invent a filing or macro figure not given.
 
 EXAMPLE OF EXPECTED TONE AND DEPTH (for calibration only, not real data): "SCHD — allocationCheck should reflect the real % of the account it represents given its live-priced market value. A new idea candidate like a semiconductor ETF: whatItDoes explains it plainly ('a fund holding the largest US chip companies'), whyNow ties to a real structural trend ('AI infrastructure buildout is a multi-year capex cycle, not a one-quarter story'), and ratingReason is specific ('Buy — broad exposure to a durable secular trend without single-company concentration risk')." That is the bar: specific and structural, never a generic "looks promising."
 
@@ -31,11 +33,22 @@ NO BROKERAGE CONNECTED: If CURRENT HOLDINGS says the user has no brokerage conne
 
 Return ONLY the structured JSON matching the provided schema — no other text. This is NOT financial advice; frame everything as "worth researching further."`;
 
+function formatMomentum(m: import("@/lib/quotes").Momentum | null): string {
+  if (!m) return "no momentum data available";
+  const parts = [
+    m.pct1Month != null ? `1mo ${m.pct1Month >= 0 ? "+" : ""}${m.pct1Month.toFixed(1)}%` : null,
+    m.pct3Month != null ? `3mo ${m.pct3Month >= 0 ? "+" : ""}${m.pct3Month.toFixed(1)}%` : null,
+    m.aboveTwentyDayAvg != null ? `${m.aboveTwentyDayAvg ? "above" : "below"} 20-day avg` : null,
+    m.aboveFiftyDayAvg != null ? `${m.aboveFiftyDayAvg ? "above" : "below"} 50-day avg` : null,
+  ].filter(Boolean);
+  return `MOMENTUM: ${parts.join(", ")}`;
+}
+
 function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>): string {
   const holdingsList = context.holdings
     .map((h) => {
       const priceInfo = h.livePrice ? `LIVE PRICE $${h.livePrice.price.toFixed(2)}` : "no live price available";
-      return `- ${h.ticker}: ${h.shares} shares, market value $${h.marketValue.toFixed(2)}, ${priceInfo}`;
+      return `- ${h.ticker}: ${h.shares} shares, market value $${h.marketValue.toFixed(2)}, ${priceInfo}. ${formatMomentum(h.momentum)}`;
     })
     .join("\n");
 
@@ -57,6 +70,18 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
     )
     .join("\n") || "(none available)";
 
+  const filingsList = context.materialFilings
+    .map((f) => `- [${f.ticker}] ${f.description}, filed ${f.filedAt}`)
+    .join("\n") || "(none in the recent record)";
+
+  const insiderList = context.insiderActivity
+    .map((f) => `- [${f.ticker}] ${f.description}, filed ${f.filedAt}`)
+    .join("\n") || "(none in the recent record)";
+
+  const macroText = context.macro
+    ? `Fed funds rate: ${context.macro.fedFundsRate}% (as of ${context.macro.fedFundsDate}). CPI inflation (YoY): ${context.macro.cpiYoyPct?.toFixed(1)}%. Unemployment: ${context.macro.unemploymentRate}% (as of ${context.macro.unemploymentDate}).`
+    : "(not configured — reason from general knowledge if macro context is relevant)";
+
   return `Today's date: ${new Date().toISOString().slice(0, 10)}
 
 CURRENT HOLDINGS:
@@ -69,6 +94,15 @@ ${watchlistList}
 
 RECENT REAL HEADLINES (from live RSS feeds, genuine and verifiable):
 ${headlinesList}
+
+RECENT SEC FILINGS (official, genuine):
+${filingsList}
+
+RECENT INSIDER ACTIVITY (SEC Form 4/144, official, genuine):
+${insiderList}
+
+CURRENT MACRO CONTEXT:
+${macroText}
 
 USER'S GOALS:
 ${goalText}

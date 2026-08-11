@@ -13,7 +13,11 @@ ANALYSIS IS FULL-CONFIDENCE (critical): Risk ratings, Buy/Hold/Sell ratings, rea
 
 ACCURACY & OBJECTIVITY: No hype, no promotional or fear-based language. Grounded, analytical, professional tone only — never casual or uncertain-sounding. Explicit "not financial advice" framing only where noted in the schema, not sprinkled throughout.
 
-DEPTH REQUIREMENT (critical): Before writing any risk rating or bottom line, actually reason through: (a) technical momentum, (b) fundamentals/balance sheet health, (c) political/regulatory context relevant to that holding's sector, (d) historical precedent for similar situations, (e) relevance to this specific user's exit rules and goals. Let this reasoning change the conclusion when warranted — do not default to a generic "Medium, seems fine" answer. Do not print raw indicator numbers (RSI values, etc) — only the plain-English conclusion they lead to.
+DEPTH REQUIREMENT (critical): Before writing any risk rating or bottom line, actually reason through: (a) technical momentum — use the REAL computed MOMENTUM figures given (1-month/3-month % change, position vs. 20/50-day averages) as ground truth, not a guess, (b) fundamentals/balance sheet health, (c) political/regulatory context relevant to that holding's sector, (d) historical precedent for similar situations, (e) relevance to this specific user's exit rules and goals. Let this reasoning change the conclusion when warranted — do not default to a generic "Medium, seems fine" answer. Do not print raw indicator numbers (RSI values, etc) — only the plain-English conclusion they lead to.
+
+SEC FILINGS & INSIDER ACTIVITY: You may be given real, recent SEC filings (8-K material events, 10-Q/10-K reports) and insider transactions (Form 4 buys/sells by executives, Form 144 proposed sales) for these tickers — official government data, genuine and verifiable. A recent 8-K is a real material event; weave it into that holding's context. Notable insider buying/selling (especially by multiple insiders, or unusually large) is a real signal worth mentioning. Don't force these in if not relevant, and never invent a filing that isn't listed.
+
+MACRO CONTEXT: If a current federal funds rate, inflation (CPI), and unemployment rate are provided, treat them as real, current, and confidently usable in reasoning about rate-sensitive holdings — do not caveat these numbers.
 
 EXAMPLE OF EXPECTED TONE AND DEPTH (for calibration only, not real data — do not reuse these numbers or this ticker):
 "NVDA — $224.50 (live). riskReason: 'Concentrated in a single fast-moving sector (AI infrastructure semiconductors); a leader with a dominant market position, but the stock's valuation already prices in years of growth, so any slowdown in AI capex would hit it disproportionately compared to a diversified fund.' ratingReason: 'Buy — durable competitive moat in AI accelerators and expanding data-center demand outweigh near-term valuation risk for a long-term holder.'"
@@ -39,13 +43,24 @@ WHAT TO WATCH NEXT: Write 2-4 sentences on what's worth paying attention to next
 
 Return ONLY the structured JSON matching the provided schema — no other text.`;
 
+function formatMomentum(m: import("@/lib/quotes").Momentum | null): string {
+  if (!m) return "no momentum data available";
+  const parts = [
+    m.pct1Month != null ? `1mo ${m.pct1Month >= 0 ? "+" : ""}${m.pct1Month.toFixed(1)}%` : null,
+    m.pct3Month != null ? `3mo ${m.pct3Month >= 0 ? "+" : ""}${m.pct3Month.toFixed(1)}%` : null,
+    m.aboveTwentyDayAvg != null ? `${m.aboveTwentyDayAvg ? "above" : "below"} 20-day avg` : null,
+    m.aboveFiftyDayAvg != null ? `${m.aboveFiftyDayAvg ? "above" : "below"} 50-day avg` : null,
+  ].filter(Boolean);
+  return `MOMENTUM: ${parts.join(", ")}`;
+}
+
 function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>): string {
   const holdingsList = context.holdings
     .map((h) => {
       const priceInfo = h.livePrice
         ? `LIVE PRICE $${h.livePrice.price.toFixed(2)}${h.livePrice.fiftyTwoWeekHigh != null ? ` (52-wk high $${h.livePrice.fiftyTwoWeekHigh.toFixed(2)}, low $${h.livePrice.fiftyTwoWeekLow?.toFixed(2)})` : ""}`
         : "no live price available";
-      return `- ${h.ticker} (${h.name}): ${h.shares} shares, market value $${h.marketValue.toFixed(2)}, cost basis ${h.costBasis != null ? `$${h.costBasis.toFixed(2)}` : "unknown"}, ${priceInfo}`;
+      return `- ${h.ticker} (${h.name}): ${h.shares} shares, market value $${h.marketValue.toFixed(2)}, cost basis ${h.costBasis != null ? `$${h.costBasis.toFixed(2)}` : "unknown"}, ${priceInfo}. ${formatMomentum(h.momentum)}`;
     })
     .join("\n");
 
@@ -60,7 +75,7 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
   const watchlistList = context.watchlist
     .map((w) => {
       const priceInfo = w.livePrice ? `LIVE PRICE $${w.livePrice.price.toFixed(2)}` : "no live price available";
-      return `- ${w.ticker}${w.note ? ` (${w.note})` : ""}, ${priceInfo}`;
+      return `- ${w.ticker}${w.note ? ` (${w.note})` : ""}, ${priceInfo}. ${formatMomentum(w.momentum)}`;
     })
     .join("\n") || "(none)";
 
@@ -70,6 +85,18 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
         `- [${a.relatedTicker ?? "general"}] "${a.title}" — ${a.source}, ${new Date(a.pubDate).toLocaleString()}`
     )
     .join("\n") || "(none available)";
+
+  const filingsList = context.materialFilings
+    .map((f) => `- [${f.ticker}] ${f.description}, filed ${f.filedAt}`)
+    .join("\n") || "(none in the recent record)";
+
+  const insiderList = context.insiderActivity
+    .map((f) => `- [${f.ticker}] ${f.description}, filed ${f.filedAt}`)
+    .join("\n") || "(none in the recent record)";
+
+  const macroText = context.macro
+    ? `Fed funds rate: ${context.macro.fedFundsRate}% (as of ${context.macro.fedFundsDate}). CPI inflation (YoY): ${context.macro.cpiYoyPct?.toFixed(1)}%. Unemployment: ${context.macro.unemploymentRate}% (as of ${context.macro.unemploymentDate}).`
+    : "(not configured — reason from general knowledge if macro context is relevant)";
 
   return `Today's date: ${new Date().toISOString().slice(0, 10)}
 
@@ -86,6 +113,15 @@ ${watchlistList}
 
 RECENT REAL HEADLINES (from live RSS feeds, genuine and verifiable):
 ${headlinesList}
+
+RECENT SEC FILINGS (official, genuine):
+${filingsList}
+
+RECENT INSIDER ACTIVITY (SEC Form 4/144, official, genuine):
+${insiderList}
+
+CURRENT MACRO CONTEXT:
+${macroText}
 
 USER'S GOALS:
 ${goalText}

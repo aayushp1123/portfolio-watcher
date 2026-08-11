@@ -12,18 +12,23 @@ CONFIRMED PRICE MOVES: A real, measured price change since the last check, compu
 
 FRESH REAL HEADLINES: Genuine, recently-published headlines (with publisher, date, and real link) pulled from live RSS feeds for these exact holdings, filtered to ones you haven't already reported before — also not something you need to verify.
 
-For each confirmed move, write one alert: headline states the ticker and the real % move, whatHappened restates the real numbers (do not invent additional facts like an earnings cause unless a fresh headline below actually confirms it), whyItMatters gives grounded context for why a move of this size matters given the holding's risk profile.
+FRESH SEC 8-K FILINGS: A company filing an 8-K with the SEC is, by definition, disclosing a material event — this is the most authoritative signal available, official and genuine, filtered to ones not already reported.
+
+For each confirmed move, write one alert: headline states the ticker and the real % move, whatHappened restates the real numbers (do not invent additional facts like an earnings cause unless a fresh headline or 8-K below actually confirms it), whyItMatters gives grounded context for why a move of this size matters given the holding's risk profile.
 
 For each fresh headline that's genuinely material (real business news — earnings, M&A, guidance, executive change, major regulatory action — not routine market commentary or opinion pieces), write one alert: headline is a plain-English restatement of the real headline, whatHappened summarizes only what the headline actually says, whyItMatters gives grounded context for this specific holding, sourceUrls includes the real link given, publishedAt is the real date given. Skip headlines that are just generic commentary/opinion with no real news content.
 
-If both lists are empty, or the only items are non-material commentary, set hasMaterialEvents to false and return an empty alerts array — that is the correct, expected behavior on most runs, not a failure state.
+For each fresh 8-K filing, write one alert: headline notes the ticker filed a material event disclosure with the SEC, whatHappened says an 8-K was filed on the given date (you don't know the specific content unless a headline below also covers it — say so honestly rather than guessing what it's about), whyItMatters explains what an 8-K filing means in plain English and why the user should look at it, sourceUrls includes the real filing link given.
+
+If all three lists are empty, or the only items are non-material commentary, set hasMaterialEvents to false and return an empty alerts array — that is the correct, expected behavior on most runs, not a failure state.
 
 Return ONLY the structured JSON matching the provided schema — no other text.`;
 
 function buildUserMessage(
   context: Awaited<ReturnType<typeof buildUserContext>>,
   confirmedMoves: Array<{ ticker: string; price: number; priorPrice: number; pctChange: number }>,
-  freshHeadlines: Array<{ ticker: string; title: string; source: string; pubDate: string; link: string }>
+  freshHeadlines: Array<{ ticker: string; title: string; source: string; pubDate: string; link: string }>,
+  freshFilings: Array<{ ticker: string; description: string; filedAt: string; url: string }>
 ): string {
   const tickers = context.holdings.map((h) => h.ticker).join(", ") || "(no holdings connected yet)";
 
@@ -47,6 +52,11 @@ function buildUserMessage(
           .join("\n")
       : "(none — no fresh unreported headlines for these holdings)";
 
+  const filingsText =
+    freshFilings.length > 0
+      ? freshFilings.map((f) => `- [${f.ticker}] ${f.description}, filed ${f.filedAt} — ${f.url}`).join("\n")
+      : "(none — no fresh unreported SEC filings for these holdings)";
+
   return `Current UTC time: ${new Date().toISOString()}
 
 HOLDINGS TO WATCH: ${tickers}
@@ -56,6 +66,9 @@ ${movesText}
 
 FRESH REAL HEADLINES SINCE LAST CHECK (within ~${FRESH_HEADLINE_HOURS}h, not previously reported):
 ${headlinesText}
+
+FRESH SEC 8-K FILINGS SINCE LAST CHECK (not previously reported):
+${filingsText}
 
 Return the structured JSON per the schema and system instructions.`;
 }
@@ -118,12 +131,20 @@ export async function generateBreakingNews(userId: string): Promise<{ skipped: t
       link: a.link,
     }));
 
+  const filingCutoffDate = new Date(freshCutoff).toISOString().slice(0, 10);
+  const freshFilings = context.materialFilings
+    .filter((f) => f.formType === "8-K")
+    .filter((f) => !priorReportedLinkSet.has(f.url))
+    .filter((f) => f.filedAt >= filingCutoffDate);
+
   const client = getGeminiClient();
   const model = getGeminiModel();
 
   const response = await client.models.generateContent({
     model,
-    contents: [{ role: "user", parts: [{ text: buildUserMessage(context, confirmedMoves, freshHeadlines) }] }],
+    contents: [
+      { role: "user", parts: [{ text: buildUserMessage(context, confirmedMoves, freshHeadlines, freshFilings) }] },
+    ],
     config: {
       systemInstruction: SYSTEM_PROMPT,
       responseMimeType: "application/json",
@@ -139,11 +160,15 @@ export async function generateBreakingNews(userId: string): Promise<{ skipped: t
 
   const report = breakingNewsSchema.parse(JSON.parse(text));
   // Deterministic, not model-trusted — hasMaterialEvents follows the real detected signals.
-  report.hasMaterialEvents = confirmedMoves.length > 0 || freshHeadlines.length > 0;
+  report.hasMaterialEvents = confirmedMoves.length > 0 || freshHeadlines.length > 0 || freshFilings.length > 0;
 
-  // Track every fresh headline we surfaced this run (whether or not the model
-  // judged it material) so it's never re-considered on the next check.
-  const newReportedLinks = [...priorReportedLinkSet, ...freshHeadlines.map((h) => h.link)].slice(-200);
+  // Track every fresh headline/filing we surfaced this run (whether or not
+  // the model judged it material) so it's never re-considered next check.
+  const newReportedLinks = [
+    ...priorReportedLinkSet,
+    ...freshHeadlines.map((h) => h.link),
+    ...freshFilings.map((f) => f.url),
+  ].slice(-200);
 
   await prisma.report.create({
     data: {
