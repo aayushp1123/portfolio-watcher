@@ -46,6 +46,7 @@ export const dailyDigestSchema = z.object({
   watchlistItems: z.array(watchlistItemReportSchema),
   dividendNotes: z.array(z.string()),
   bottomLine: z.string(),
+  whatToWatchNext: z.string(),
   sourceUrls: z.array(z.string()),
 });
 export type DailyDigest = z.infer<typeof dailyDigestSchema>;

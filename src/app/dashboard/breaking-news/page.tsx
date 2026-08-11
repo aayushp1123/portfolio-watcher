@@ -3,7 +3,6 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isAiConfigured } from "@/lib/gemini";
 import type { BreakingNews } from "@/lib/reports/schemas";
-import { GenerateButton } from "@/components/dashboard/GenerateButton";
 import { BreakingNewsStatusCard, BreakingNewsAlerts } from "@/components/reports/BreakingNewsView";
 
 export default async function BreakingNewsPage() {
@@ -41,7 +40,6 @@ export default async function BreakingNewsPage() {
             </p>
           )}
         </div>
-        <GenerateButton aiConfigured={aiConfigured} reportType="BREAKING_NEWS" label="Check Now" />
       </div>
 
       <div className="mt-6">
@@ -50,8 +48,8 @@ export default async function BreakingNewsPage() {
           report={latestReport}
           notConfiguredMessage={
             aiConfigured
-              ? "Click Check Now to run your first check."
-              : "Add your Gemini API key in Settings to enable this."
+              ? "This checks automatically several times a day — check back after the next scheduled run."
+              : "Add your Gemini API key in Settings — this will then check automatically several times a day."
           }
         />
       </div>

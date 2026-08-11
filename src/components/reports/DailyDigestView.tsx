@@ -139,6 +139,18 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
           <p className="text-sm text-ink-900">{report.bottomLine}</p>
         </Card>
       </section>
+
+      <Card className="border-teal-600/30 bg-paper-0">
+        <p className="text-xs font-semibold uppercase tracking-wide text-teal-600">
+          What to Watch Next
+        </p>
+        <p className="mt-2 text-sm text-ink-700">{report.whatToWatchNext}</p>
+      </Card>
+
+      <p className="text-center text-xs text-ink-500">
+        Prices may be inaccurate since this report doesn&apos;t use live market data — all ratings,
+        risk assessments, and analysis are Gemini&apos;s own reasoning from general knowledge.
+      </p>
     </div>
   );
 }

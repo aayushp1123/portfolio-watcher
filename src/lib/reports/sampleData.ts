@@ -99,6 +99,8 @@ export const sampleDailyDigest: DailyDigest = {
   ],
   bottomLine:
     "Nothing needs your attention today. Your index fund is doing the steady, boring work it's supposed to, and BEPC hasn't reached your exit price. This is sample data — sign up and connect your own account to see this built from your real holdings.",
+  whatToWatchNext:
+    "Keep an eye on BEPC's next earnings report for progress toward your $40 exit target, and watch for any Fed rate updates given the position's rate sensitivity. Broader market direction will likely track upcoming inflation data releases.",
   sourceUrls: [],
 };
 

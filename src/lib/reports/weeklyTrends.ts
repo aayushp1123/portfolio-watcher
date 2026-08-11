@@ -5,9 +5,11 @@ import { weeklyTrendsSchema, toJsonSchema, type WeeklyTrends } from "@/lib/repor
 
 const SYSTEM_PROMPT = `You are producing a weekly research digest for someone building a long-term-growth-focused portfolio who has NEVER invested before. Every financial term needs a short, plain-English explanation inline.
 
-SOURCE REQUIREMENT (critical): Only reliable sources — official company sources, Yahoo Finance, Google Finance, Bloomberg, Reuters, CNBC, MarketWatch, WSJ, Barron's, established brokerages, Morningstar, stockanalysis.com. No blogs, unverified SEO sites, forums, or social media. Cross-check figures across sources when possible and note disagreements.
+PRICE DATA ONLY (narrow caveat): You do not have live web search, so only the specific dollar prices you state may be stale — use your best last-known approximation, without hedging language cluttering every sentence. A single caveat about prices is shown separately in the UI.
 
-ACCURACY & OBJECTIVITY: No hype, no promotional language for any candidate. Be honest about High-risk picks rather than downplaying them.
+ANALYSIS IS FULL-CONFIDENCE (critical): Everything that is NOT a specific live price — trend explanations, risk ratings, Buy/Hold/Sell ratings, allocation math, candidate reasoning — must be written with full analytical confidence and authority, exactly like a professional research note. Do not hedge or undercut your own analysis.
+
+ACCURACY & OBJECTIVITY: No hype, no promotional language for any candidate. Be honest about High-risk picks rather than downplaying them. Grounded, analytical, professional tone throughout.
 
 DEPTH REQUIREMENT (critical): Before any risk rating or trend explanation, reason through: (a) technical momentum, (b) fundamentals, (c) political/regulatory context, (d) historical precedent, (e) relevance to this user's specific goals/buckets. Let this reasoning actually change the conclusion — don't default to a generic answer. Do not print raw indicator numbers, only the plain-English conclusions they lead to.
 
@@ -17,7 +19,7 @@ NEW IDEAS: Suggest 3-5 stock or ETF candidates worth researching further, ideall
 
 RISK RATING METHODOLOGY: Low/Medium/High for every candidate, based on (a) volatility/beta, (b) balance sheet health, (c) concentration/political exposure, (d) valuation risk, (e) maturity/track record — newer or unprofitable companies carry more risk even with an exciting growth story.
 
-RATING METHODOLOGY (Buy/Hold/Sell, required for every candidate): Search for the current professional analyst consensus for the ticker from reputable aggregators (Yahoo Finance "Analyst Ratings", TipRanks consensus, Zacks Rank, MarketWatch analyst ratings, WSJ Markets, or Morningstar star rating) — this reflects institutional/accredited-investor opinion. Combine that consensus with your own DEPTH REQUIREMENT reasoning above to land on exactly one of Buy/Hold/Sell, plus a single tight sentence of rationale in ratingReason. If a candidate has thin or no analyst coverage, say so explicitly in ratingReason instead of inventing a consensus. This is a synthesis of public professional opinion for informational purposes, not personalized financial advice.
+RATING METHODOLOGY (Buy/Hold/Sell, required for every candidate): Based on your own DEPTH REQUIREMENT reasoning above, land on exactly one of Buy/Hold/Sell, stated with confidence, plus a single tight sentence of rationale in ratingReason. Do not cite a specific numeric analyst-consensus count since you cannot verify that live — ground the rationale in the fundamentals/momentum/risk reasoning you already did.
 
 WATCHLIST ITEMS: The user may also list tickers they don't own yet, just want to track. Research and rate each one the same way as a NEW IDEA candidate above (summary, riskRating/riskReason, rating/ratingReason) — these are separate from the newIdeas list you're suggesting; watchlistItems is specifically the user's own tracked tickers.
 
@@ -51,7 +53,7 @@ ${watchlistList}
 USER'S GOALS:
 ${goalText}
 
-Research current market trends and produce the full weekly digest per the schema and system instructions.`;
+Produce the full weekly digest per the schema and system instructions — confident, analytical, professional throughout; only treat specific dollar prices as approximate.`;
 }
 
 export async function generateWeeklyTrends(userId: string): Promise<{ skipped: true; reason: string } | { skipped: false; report: WeeklyTrends }> {
@@ -69,7 +71,6 @@ export async function generateWeeklyTrends(userId: string): Promise<{ skipped: t
     contents: [{ role: "user", parts: [{ text: buildUserMessage(context) }] }],
     config: {
       systemInstruction: SYSTEM_PROMPT,
-      tools: [{ googleSearch: {} }],
       responseMimeType: "application/json",
       responseJsonSchema: toJsonSchema(weeklyTrendsSchema),
     },

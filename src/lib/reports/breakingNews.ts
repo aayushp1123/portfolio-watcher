@@ -3,34 +3,18 @@ import { prisma } from "@/lib/prisma";
 import { buildUserContext } from "@/lib/reports/buildContext";
 import { breakingNewsSchema, toJsonSchema, type BreakingNews } from "@/lib/reports/schemas";
 
-const SYSTEM_PROMPT = `You are a once-daily monitor for a user's investment holdings, checking what's changed since the prior day — NOT a full recap. The user has NEVER invested before, so any alert needs plain-English explanations.
+const SYSTEM_PROMPT = `You are a once-daily monitor for a user's investment holdings. You do NOT have live web search, so you cannot verify whether anything genuinely fresh happened in the last 24-30 hours — never fabricate a "breaking" event, a specific date/time, or a price move you cannot actually confirm. Set hasMaterialEvents to false and return an empty alerts array every time, unless the user's holdings context itself flags something you can state with genuine confidence (this should be rare to never) — do not invent verifiable-sounding news to fill space. This is the honest, correct behavior here, not a failure state.
 
-CRITICAL FRESHNESS RULE: Only report something as material if it is genuinely fresh (published/updated within roughly the last 24-30 hours, since this runs once per day) and hasn't already been reported in a prior check (see PRIOR ALERTS below — do not repeat those unless there is a genuine new development). Do not re-flag something just because it's still true or important.
+Return ONLY the structured JSON matching the provided schema — no other text.`;
 
-SOURCE REQUIREMENT: Only reliable sources — official company sources, Yahoo Finance, Google Finance, Bloomberg, Reuters, CNBC, MarketWatch, WSJ, Barron's, AP, established brokerages, Morningstar, stockanalysis.com. No blogs, forums, or social media. Only report something as material if verifiable from a credible source.
-
-ACCURACY & OBJECTIVITY: No hype, alarmist, or promotional language — describe neutrally with actual facts. Do not editorialize beyond what the data shows.
-
-Check for genuinely MATERIAL, FRESH, VERIFIABLE developments only: (1) holdings making a sharp recent move (roughly >5%) or hitting real confirmed news (earnings surprise, M&A, executive change, lawsuit, major regulatory action, guidance change), (2) major market-moving news (Fed decisions, macro data, major geopolitical events), (3) major verified breaking news relevant to the user's holdings' sectors.
-
-If nothing material and fresh happened, set hasMaterialEvents to false and return an empty alerts array — most runs should look like this. If something IS material, reason through technical momentum + fundamentals + political context + historical precedent before writing whyItMatters, so it's a distilled conclusion, not a rephrased headline.
-
-Return ONLY the structured JSON matching the provided schema — no other text. This is context, not financial advice.`;
-
-function buildUserMessage(
-  context: Awaited<ReturnType<typeof buildUserContext>>,
-  priorAlerts: string[]
-): string {
+function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>): string {
   const tickers = context.holdings.map((h) => h.ticker).join(", ") || "(no holdings connected yet)";
 
   return `Current UTC time: ${new Date().toISOString()}
 
 HOLDINGS TO WATCH: ${tickers}
 
-PRIOR ALERTS ALREADY REPORTED (do not repeat these unless there's a genuine new development):
-${priorAlerts.length > 0 ? priorAlerts.map((a) => `- ${a}`).join("\n") : "(none yet)"}
-
-Check for material, fresh developments now.`;
+Return the structured JSON per the schema and system instructions.`;
 }
 
 export async function generateBreakingNews(userId: string): Promise<{ skipped: true; reason: string } | { skipped: false; report: BreakingNews }> {
@@ -40,29 +24,14 @@ export async function generateBreakingNews(userId: string): Promise<{ skipped: t
     return { skipped: true, reason: "No holdings connected yet — nothing to watch." };
   }
 
-  const recentReports = await prisma.report.findMany({
-    where: { userId, type: "BREAKING_NEWS", hasMaterialEvents: true },
-    orderBy: { generatedAt: "desc" },
-    take: 3,
-  });
-  const priorAlerts = recentReports.flatMap((r) => {
-    try {
-      const parsed = JSON.parse(r.content) as BreakingNews;
-      return parsed.alerts.map((a) => `${a.ticker ?? "Market"}: ${a.headline}`);
-    } catch {
-      return [];
-    }
-  });
-
   const client = getGeminiClient();
   const model = getGeminiModel();
 
   const response = await client.models.generateContent({
     model,
-    contents: [{ role: "user", parts: [{ text: buildUserMessage(context, priorAlerts) }] }],
+    contents: [{ role: "user", parts: [{ text: buildUserMessage(context) }] }],
     config: {
       systemInstruction: SYSTEM_PROMPT,
-      tools: [{ googleSearch: {} }],
       responseMimeType: "application/json",
       responseJsonSchema: toJsonSchema(breakingNewsSchema),
     },

@@ -121,6 +121,11 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
           </div>
         </section>
       )}
+
+      <p className="text-center text-xs text-ink-500">
+        Prices may be inaccurate since this report doesn&apos;t use live market data — all ratings,
+        risk assessments, and analysis are Gemini&apos;s own reasoning from general knowledge.
+      </p>
     </div>
   );
 }
