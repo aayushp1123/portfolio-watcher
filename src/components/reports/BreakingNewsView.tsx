@@ -1,6 +1,9 @@
+"use client";
+
 import type { BreakingNews } from "@/lib/reports/schemas";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
+import { TickerButton } from "@/components/dashboard/TickerButton";
 
 const riskTone = { Low: "good", Medium: "warn", High: "crit" } as const;
 
@@ -48,7 +51,12 @@ export function BreakingNewsAlerts({ report }: { report: BreakingNews }) {
           <Card key={i} className="border-l-4 border-l-teal-600">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="font-[family-name:var(--font-heading)] font-bold text-ink-900">
-                {alert.ticker ?? "Market"}: {alert.headline}
+                {alert.ticker ? (
+                  <TickerButton ticker={alert.ticker} className="font-bold text-ink-900" />
+                ) : (
+                  "Market"
+                )}
+                : {alert.headline}
               </span>
               <Pill tone={riskTone[alert.riskRating]}>{alert.riskRating} risk</Pill>
             </div>

@@ -1,6 +1,9 @@
+"use client";
+
 import type { DailyDigest } from "@/lib/reports/schemas";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
+import { TickerButton } from "@/components/dashboard/TickerButton";
 
 const riskTone = { Low: "good", Medium: "warn", High: "crit" } as const;
 const exitTone = { ok: "neutral", approaching: "warn", triggered: "crit", none: "neutral" } as const;
@@ -54,9 +57,10 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
             {report.holdings.map((h) => (
               <Card key={h.ticker}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
-                    {h.ticker}
-                  </span>
+                  <TickerButton
+                    ticker={h.ticker}
+                    className="font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900"
+                  />
                   <div className="flex items-center gap-2">
                     {h.exitRuleStatus && h.exitRuleStatus.status !== "none" && (
                       <Pill tone={exitTone[h.exitRuleStatus.status]}>{exitLabel[h.exitRuleStatus.status]}</Pill>
@@ -96,9 +100,10 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
             {report.watchlistItems.map((w) => (
               <Card key={w.ticker}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
-                    {w.ticker}
-                  </span>
+                  <TickerButton
+                    ticker={w.ticker}
+                    className="font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900"
+                  />
                   <div className="flex items-center gap-2">
                     <Pill tone={ratingTone[w.rating]}>{w.rating}</Pill>
                     <Pill tone={riskTone[w.riskRating]}>{w.riskRating} risk</Pill>
@@ -148,8 +153,8 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
       </Card>
 
       <p className="text-center text-xs text-ink-500">
-        Prices may be inaccurate since this report doesn&apos;t use live market data — all ratings,
-        risk assessments, and analysis are Gemini&apos;s own reasoning from general knowledge.
+        Prices are live from the market at generation time — ratings, risk assessments, and analysis
+        are Gemini&apos;s own reasoning grounded in that live data. This is not financial advice.
       </p>
     </div>
   );

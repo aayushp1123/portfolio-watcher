@@ -1,6 +1,9 @@
+"use client";
+
 import type { WeeklyTrends } from "@/lib/reports/schemas";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
+import { TickerButton } from "@/components/dashboard/TickerButton";
 
 const riskTone = { Low: "good", Medium: "warn", High: "crit" } as const;
 const ratingTone = { Buy: "good", Hold: "warn", Sell: "crit" } as const;
@@ -73,9 +76,10 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
           {report.newIdeas.map((idea) => (
             <Card key={idea.ticker}>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
-                  {idea.ticker}
-                </span>
+                <TickerButton
+                  ticker={idea.ticker}
+                  className="font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900"
+                />
                 <div className="flex items-center gap-2">
                   <Pill tone="neutral">{bucketLabel[idea.bucket]}</Pill>
                   <Pill tone={ratingTone[idea.rating]}>{idea.rating}</Pill>
@@ -102,9 +106,10 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
             {report.watchlistItems.map((w) => (
               <Card key={w.ticker}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
-                    {w.ticker}
-                  </span>
+                  <TickerButton
+                    ticker={w.ticker}
+                    className="font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900"
+                  />
                   <div className="flex items-center gap-2">
                     <Pill tone={ratingTone[w.rating]}>{w.rating}</Pill>
                     <Pill tone={riskTone[w.riskRating]}>{w.riskRating} risk</Pill>
@@ -123,8 +128,8 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
       )}
 
       <p className="text-center text-xs text-ink-500">
-        Prices may be inaccurate since this report doesn&apos;t use live market data — all ratings,
-        risk assessments, and analysis are Gemini&apos;s own reasoning from general knowledge.
+        Prices are live from the market at generation time — ratings, risk assessments, and analysis
+        are Gemini&apos;s own reasoning grounded in that live data. This is not financial advice.
       </p>
     </div>
   );

@@ -32,10 +32,10 @@ export function DashboardNav() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`whitespace-nowrap rounded-full border px-3 py-1.5 font-[family-name:var(--font-heading)] text-sm font-semibold transition-colors ${
+                className={`whitespace-nowrap rounded-full border px-3 py-1.5 font-[family-name:var(--font-heading)] text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] ${
                   active
-                    ? "border-teal-600 text-teal-600"
-                    : "border-line text-ink-700 hover:border-teal-600 hover:text-teal-600"
+                    ? "border-teal-600 bg-teal-600 text-white shadow-sm"
+                    : "border-line text-ink-700 hover:border-teal-600 hover:text-teal-600 hover:shadow-sm"
                 }`}
               >
                 {link.label}

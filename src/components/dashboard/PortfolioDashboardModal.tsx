@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Button";
-import { InteractivePortfolioChart } from "@/components/dashboard/InteractivePortfolioChart";
+import { PremiumChart } from "@/components/dashboard/PremiumChart";
 
 interface ReturnRow {
   period: "1D" | "1W" | "1M" | "YTD";
@@ -155,7 +155,13 @@ export function PortfolioDashboardModal({ open, onClose }: { open: boolean; onCl
               </div>
 
               <div className="rounded-lg border border-line p-4">
-                <InteractivePortfolioChart portfolioSeries={snapshot.chartSeries} spSeries={snapshot.spChartSeries} />
+                <PremiumChart
+                  series={[
+                    { label: "Your Portfolio", color: "var(--teal-600)", points: snapshot.chartSeries, fill: true },
+                    { label: "S&P 500 (indexed)", color: "var(--warn-600)", points: snapshot.spChartSeries, dashed: true },
+                  ]}
+                  showLegend
+                />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
