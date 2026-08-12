@@ -8,6 +8,7 @@ import { GoalEditor } from "@/components/dashboard/GoalEditor";
 import { ExitRulesManager } from "@/components/dashboard/ExitRulesManager";
 import { WatchlistManager } from "@/components/dashboard/WatchlistManager";
 import { PlaidItemsList } from "@/components/dashboard/PlaidItemsList";
+import { DeleteAccountSection } from "@/components/dashboard/DeleteAccountSection";
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions);
@@ -37,6 +38,8 @@ export default async function SettingsPage() {
         <WatchlistManager initialItems={watchlistItems} />
         <ExitRulesManager initialRules={exitRules} />
       </div>
+
+      <DeleteAccountSection />
     </div>
   );
 }

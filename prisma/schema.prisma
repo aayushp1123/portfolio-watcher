@@ -18,11 +18,23 @@ model User {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  goal           Goal?
-  exitRules      ExitRule[]
-  plaidItems     PlaidItem[]
-  watchlistItems WatchlistItem[]
-  reports        Report[]
+  goal                Goal?
+  exitRules           ExitRule[]
+  plaidItems          PlaidItem[]
+  watchlistItems      WatchlistItem[]
+  reports             Report[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model Goal {

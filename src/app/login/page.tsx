@@ -76,6 +76,11 @@ export default function LoginPage() {
               {loading ? "Logging in…" : "Log in"}
             </Button>
           </form>
+          <p className="mt-4 text-center text-sm">
+            <Link href="/forgot-password" className="text-ink-500 hover:text-teal-600 hover:underline">
+              Forgot password?
+            </Link>
+          </p>
         </Card>
 
         <p className="mt-5 text-center text-sm text-ink-500">
