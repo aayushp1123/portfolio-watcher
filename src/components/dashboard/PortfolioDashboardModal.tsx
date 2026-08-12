@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Button";
 import { InteractivePortfolioChart } from "@/components/dashboard/InteractivePortfolioChart";
 
@@ -69,11 +70,25 @@ export function PortfolioDashboardModal({ open, onClose }: { open: boolean; onCl
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
+  // Lock background scroll while open, and prevent an ancestor with a
+  // transform/filter/backdrop-filter (any of which creates a CSS containing
+  // block) from trapping this modal's `fixed` positioning -- rendering
+  // straight into document.body via a portal guarantees it always covers
+  // the real viewport, not just the page's content column.
+  useEffect(() => {
+    if (!open) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
+
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-2 sm:p-4"
       style={{ animation: "modal-backdrop-in 180ms ease-out" }}
       onClick={onClose}
       role="dialog"
@@ -228,6 +243,7 @@ export function PortfolioDashboardModal({ open, onClose }: { open: boolean; onCl
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
