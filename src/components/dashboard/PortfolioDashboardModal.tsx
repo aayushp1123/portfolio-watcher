@@ -73,14 +73,16 @@ export function PortfolioDashboardModal({ open, onClose }: { open: boolean; onCl
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4"
+      style={{ animation: "modal-backdrop-in 180ms ease-out" }}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label="Portfolio dashboard"
     >
       <div
-        className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-line bg-paper-0 shadow-2xl"
+        className="flex h-[97vh] w-[98vw] flex-col overflow-hidden rounded-xl border border-line bg-paper-0 shadow-2xl"
+        style={{ animation: "modal-panel-in 220ms ease-out" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-line px-6 py-4">
