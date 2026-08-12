@@ -32,7 +32,7 @@ export function InfoTooltip({
         tabIndex={0}
         onFocus={() => setShow(true)}
         onBlur={() => setShow(false)}
-        className="cursor-help outline-none"
+        className="flex-1 cursor-help outline-none"
       >
         {children}
       </span>
