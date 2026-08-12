@@ -148,7 +148,11 @@ Listed because the *root causes* are useful context for future debugging, not ju
 
 ---
 
-## 9. Key File Locations (quick reference for a fresh session)
+## 9. Public-Facing Text (README, GitHub description)
+
+The `README.md` and the GitHub repo description were rewritten to a personal, resume-facing tone at the user's request: first-person "I built this" framing, a numbered chronological build story (database/auth → Plaid → AI pipeline → cron scheduling → watchlist → free data sources layered in → quant metrics → prompt hardening → front-end rebuild → account management), matching the style of the user's other repos (`it-service-desk-analytics`, `s-p500-etl-dataset`). **Claude Code is mentioned exactly once**, in the tech stack table, explicitly framed as a supplemental coding aid ("AI coding assistance — Claude Code (supplemental — used alongside manual development)") — not as the primary dev tool or a "built with AI" framing. Keep this framing if the README is touched again; don't reintroduce heavier AI-tool language.
+
+## 10. Key File Locations (quick reference for a fresh session)
 
 **Report generation (the core AI pipeline):**
 - `src/lib/reports/buildContext.ts` — assembles every real data source into one `UserReportContext` object per user. Start here to see everything a report generator has access to.
@@ -182,6 +186,6 @@ Listed because the *root causes* are useful context for future debugging, not ju
 
 ---
 
-## 10. Verification Discipline Used Throughout
+## 11. Verification Discipline Used Throughout
 
 Worth preserving as a practice going forward: every new data source added this session was verified against **real production data** (via a temporary `tsx` script hitting the live Neon database + real free APIs) before being wired into the AI prompts, not just built and assumed correct. This caught several of the bugs listed in §7 before they ever reached a real report. Recommend continuing this pattern for any future data-source additions.
