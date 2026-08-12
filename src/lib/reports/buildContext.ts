@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getParsedHoldings } from "@/lib/holdings";
 import { getQuotes, getMomentums, getQuote, getMomentum, type Quote, type Momentum } from "@/lib/quotes";
 import { getPersonalizedNews, type NewsArticle } from "@/lib/newsFeed";
 import { getMaterialFilings, getInsiderActivity, type SecFiling } from "@/lib/secEdgar";
@@ -62,64 +63,12 @@ export interface UserReportContext {
  * calling Plaid live on every report — keeps report generation to a single
  * external dependency (Gemini) per run. */
 export async function buildUserContext(userId: string): Promise<UserReportContext> {
-  const [goal, exitRules, plaidItems, watchlistItems] = await Promise.all([
+  const [goal, exitRules, { rawHoldings, cashAvailable, hasBrokerageConnection }, watchlistItems] = await Promise.all([
     prisma.goal.findUnique({ where: { userId } }),
     prisma.exitRule.findMany({ where: { userId, active: true } }),
-    prisma.plaidItem.findMany({ where: { userId, status: "active" } }),
+    getParsedHoldings(userId),
     prisma.watchlistItem.findMany({ where: { userId } }),
   ]);
-
-  type RawHolding = {
-    ticker: string;
-    name: string;
-    shares: number;
-    marketValue: number;
-    costBasis: number | null;
-  };
-  const rawHoldings: RawHolding[] = [];
-  let cashAvailable = 0;
-
-  for (const item of plaidItems) {
-    if (!item.lastHoldingsJson) continue;
-    try {
-      const parsed = JSON.parse(item.lastHoldingsJson) as {
-        holdings?: Array<{
-          security_id: string;
-          quantity: number;
-          institution_value: number;
-          cost_basis: number | null;
-        }>;
-        securities?: Array<{
-          security_id: string;
-          ticker_symbol: string | null;
-          name: string | null;
-          type: string;
-        }>;
-      };
-
-      const securityById = new Map((parsed.securities ?? []).map((s) => [s.security_id, s]));
-
-      for (const h of parsed.holdings ?? []) {
-        const security = securityById.get(h.security_id);
-        if (!security) continue;
-        if (security.type === "cash") {
-          cashAvailable += h.institution_value;
-          continue;
-        }
-        if (!security.ticker_symbol) continue;
-
-        rawHoldings.push({
-          ticker: security.ticker_symbol,
-          name: security.name ?? security.ticker_symbol,
-          shares: h.quantity,
-          marketValue: h.institution_value,
-          costBasis: h.cost_basis,
-        });
-      }
-    } catch {
-      // Skip malformed cached holdings for this item rather than failing the whole report.
-    }
-  }
 
   const allTickers = [...rawHoldings.map((h) => h.ticker), ...watchlistItems.map((w) => w.ticker)];
 
@@ -164,7 +113,7 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
     })),
     holdings,
     cashAvailable,
-    hasBrokerageConnection: plaidItems.length > 0,
+    hasBrokerageConnection,
     watchlist: watchlistItems.map((w) => ({
       ticker: w.ticker,
       note: w.note,

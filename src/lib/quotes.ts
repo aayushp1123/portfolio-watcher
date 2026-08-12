@@ -113,6 +113,39 @@ export async function getHistoricalCloses(ticker: string, range = "3mo"): Promis
   }
 }
 
+export interface PricePoint {
+  date: string;
+  close: number;
+}
+
+/** Same free Yahoo chart endpoint as getHistoricalCloses, but keeps the
+ * aligned trading-day dates -- needed to compute date-anchored returns
+ * (1D/1W/1M/YTD) rather than just a raw series. */
+export async function getHistoricalSeries(ticker: string, range = "1y"): Promise<PricePoint[] | null> {
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=1d`,
+      { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const result = data?.chart?.result?.[0];
+    const timestamps: number[] = result?.timestamp ?? [];
+    const closesRaw: Array<number | null> = result?.indicators?.quote?.[0]?.close ?? [];
+
+    const series: PricePoint[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      const close = closesRaw[i];
+      if (typeof close !== "number") continue;
+      series.push({ date: new Date(timestamps[i] * 1000).toISOString().slice(0, 10), close });
+    }
+    return series.length >= 2 ? series : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Fetches momentum for many tickers in parallel; failed lookups are simply omitted. */
 export async function getMomentums(tickers: string[]): Promise<Map<string, Momentum>> {
   const unique = [...new Set(tickers)];

@@ -10,7 +10,7 @@ import { DailyDigestView } from "@/components/reports/DailyDigestView";
 import { ReportPageHeader } from "@/components/dashboard/ReportPageHeader";
 import { ReportDiffBanner } from "@/components/dashboard/ReportDiffBanner";
 import { RatingTrackRecord } from "@/components/dashboard/RatingTrackRecord";
-import { PortfolioValueChart } from "@/components/dashboard/PortfolioValueChart";
+import { PortfolioValueChartExpandable } from "@/components/dashboard/PortfolioValueChartExpandable";
 import { DAILY_DIGEST_SCHEDULE, getNextRun } from "@/lib/cronSchedule";
 
 export default async function DashboardPage() {
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
       ) : (
         <div className="mt-6 flex flex-col gap-4">
           <ReportDiffBanner changes={ratingChanges} />
-          <PortfolioValueChart points={valuePoints} />
+          <PortfolioValueChartExpandable points={valuePoints} />
           <DailyDigestView report={report} />
           <RatingTrackRecord entries={trackRecord.entries} accuratePct={trackRecord.accuratePct} />
         </div>
