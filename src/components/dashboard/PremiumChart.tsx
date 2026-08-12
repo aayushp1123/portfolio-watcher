@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
 
 export interface ChartPoint {
   date: string;
@@ -15,6 +15,14 @@ export interface ChartSeries {
   fill?: boolean;
 }
 
+export interface OhlcPoint {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
 const RANGES = [
   { label: "1M", days: 30 },
   { label: "3M", days: 90 },
@@ -25,8 +33,38 @@ const RANGES = [
 ] as const;
 
 type RangeLabel = (typeof RANGES)[number]["label"];
+export type ChartType = "line" | "bar" | "candlestick" | "compare";
 
-function filterByRange(points: ChartPoint[], range: RangeLabel, anchor: Date): ChartPoint[] {
+const TYPE_ICONS: Record<ChartType, ReactNode> = {
+  line: (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <path d="M1 12 L6 6 L9.5 9 L15 3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  ),
+  bar: (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <rect x="1.5" y="8" width="3" height="6.5" rx="0.5" fill="currentColor" />
+      <rect x="6.5" y="4" width="3" height="10.5" rx="0.5" fill="currentColor" />
+      <rect x="11.5" y="1.5" width="3" height="13" rx="0.5" fill="currentColor" />
+    </svg>
+  ),
+  candlestick: (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <line x1="3" y1="1.5" x2="3" y2="14.5" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="1.3" y="5" width="3.4" height="5" fill="currentColor" />
+      <line x1="11" y1="3" x2="11" y2="13" stroke="currentColor" strokeWidth="1.2" />
+      <rect x="9.3" y="6.5" width="3.4" height="4" fill="currentColor" />
+    </svg>
+  ),
+  compare: (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+      <circle cx="6" cy="8" r="4.5" stroke="currentColor" strokeWidth="1.4" />
+      <circle cx="10.5" cy="8" r="4.5" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  ),
+};
+
+function filterByRange<T extends { date: string }>(points: T[], range: RangeLabel, anchor: Date): T[] {
   if (points.length === 0 || range === "All") return points;
   let cutoff: Date;
   if (range === "YTD") {
@@ -38,7 +76,7 @@ function filterByRange(points: ChartPoint[], range: RangeLabel, anchor: Date): C
   return points.filter((p) => new Date(p.date) >= cutoff);
 }
 
-function nearestByDate(points: ChartPoint[], target: Date): ChartPoint | null {
+function nearestByDate<T extends { date: string }>(points: T[], target: Date): T | null {
   if (points.length === 0) return null;
   let best = points[0];
   let bestDiff = Math.abs(new Date(best.date).getTime() - target.getTime());
@@ -79,19 +117,39 @@ const PADDING = { top: 24, bottom: 32, left: 12, right: 12 };
 
 export function PremiumChart({
   series,
+  ohlc,
   valuePrefix = "$",
   showLegend = false,
   decorativeDots = true,
   defaultRange = "3M",
+  chartType: controlledType,
+  onChartTypeChange,
+  showCompareOption = false,
 }: {
   series: ChartSeries[];
+  /** Real open/high/low/close for the primary instrument -- enables the
+   * Candlestick chart type. Omit when the series isn't a single tradable
+   * instrument (e.g. total portfolio value has no meaningful OHLC). */
+  ohlc?: OhlcPoint[];
   valuePrefix?: string;
   showLegend?: boolean;
   decorativeDots?: boolean;
   defaultRange?: RangeLabel;
+  /** Pass both to let a parent own chart-type state (e.g. to show a
+   * "compare with another stock" panel when Compare is selected). Omit
+   * both to let the chart manage its own type state internally. */
+  chartType?: ChartType;
+  onChartTypeChange?: (type: ChartType) => void;
+  /** Shows a 4th "Compare" button in the type toggle -- purely a UI signal;
+   * rendering-wise Compare behaves identically to Line (the parent is
+   * responsible for adding a second series and reacting to the selection). */
+  showCompareOption?: boolean;
 }) {
   const uid = useId();
   const [range, setRange] = useState<RangeLabel>(defaultRange);
+  const [internalType, setInternalType] = useState<ChartType>("line");
+  const chartType = controlledType ?? internalType;
+  const setChartType = onChartTypeChange ?? setInternalType;
   const [hoverDate, setHoverDate] = useState<Date | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -105,8 +163,13 @@ export function PremiumChart({
     () => series.map((s) => ({ ...s, points: filterByRange(s.points, range, anchor) })),
     [series, range, anchor]
   );
+  const filteredOhlc = useMemo(() => (ohlc ? filterByRange(ohlc, range, anchor) : []), [ohlc, range, anchor]);
 
-  const allValues = filteredSeries.flatMap((s) => s.points.map((p) => p.value));
+  const isCandlestick = chartType === "candlestick" && filteredOhlc.length >= 2;
+
+  const allValues = isCandlestick
+    ? filteredOhlc.flatMap((p) => [p.high, p.low])
+    : filteredSeries.flatMap((s) => s.points.map((p) => p.value));
   const min = allValues.length ? Math.min(...allValues) : 0;
   const max = allValues.length ? Math.max(...allValues) : 1;
   const valueRange = max - min || 1;
@@ -114,7 +177,7 @@ export function PremiumChart({
   const plotW = WIDTH - PADDING.left - PADDING.right;
   const plotH = HEIGHT - PADDING.top - PADDING.bottom;
 
-  function toX(points: ChartPoint[], i: number): number {
+  function toXAt<T>(points: T[], i: number): number {
     return points.length > 1 ? (i / (points.length - 1)) * plotW + PADDING.left : PADDING.left;
   }
   function toY(value: number): number {
@@ -122,6 +185,7 @@ export function PremiumChart({
   }
 
   const primaryPoints = filteredSeries[0]?.points ?? [];
+  const hoverBasisLength = isCandlestick ? filteredOhlc.length : primaryPoints.length;
 
   const scatteredDots = useMemo(() => {
     if (!decorativeDots) return [];
@@ -134,12 +198,13 @@ export function PremiumChart({
   }, [decorativeDots, plotW, plotH]);
 
   function handleMove(e: MouseEvent<SVGSVGElement>) {
-    if (!svgRef.current || primaryPoints.length === 0) return;
+    if (!svgRef.current || hoverBasisLength === 0) return;
     const rect = svgRef.current.getBoundingClientRect();
     const relX = ((e.clientX - rect.left) / rect.width) * WIDTH;
-    const idx = Math.round(((relX - PADDING.left) / plotW) * (primaryPoints.length - 1));
-    const clamped = Math.max(0, Math.min(primaryPoints.length - 1, idx));
-    setHoverDate(new Date(primaryPoints[clamped].date));
+    const idx = Math.round(((relX - PADDING.left) / plotW) * (hoverBasisLength - 1));
+    const clamped = Math.max(0, Math.min(hoverBasisLength - 1, idx));
+    const dateSource = isCandlestick ? filteredOhlc : primaryPoints;
+    setHoverDate(new Date(dateSource[clamped].date));
   }
 
   if (primaryPoints.length < 2) {
@@ -149,6 +214,14 @@ export function PremiumChart({
   const hoverPointsBySeries = hoverDate
     ? filteredSeries.map((s) => ({ series: s, point: nearestByDate(s.points, hoverDate) }))
     : [];
+  const hoverOhlc = hoverDate && isCandlestick ? nearestByDate(filteredOhlc, hoverDate) : null;
+
+  const typeOptions: Array<{ value: ChartType; label: string }> = [
+    { value: "line", label: "Line" },
+    { value: "bar", label: "Bar" },
+    ...(ohlc && ohlc.length >= 2 ? [{ value: "candlestick" as ChartType, label: "Candles" }] : []),
+    ...(showCompareOption ? [{ value: "compare" as ChartType, label: "Compare" }] : []),
+  ];
 
   return (
     <div>
@@ -186,6 +259,23 @@ export function PremiumChart({
         </div>
       </div>
 
+      <div className="mb-3 flex gap-1">
+        {typeOptions.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setChartType(t.value)}
+            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold transition-all duration-150 ease-out active:scale-[0.95] ${
+              chartType === t.value
+                ? "border-teal-600 bg-teal-600 text-white shadow-sm"
+                : "border-line text-ink-500 hover:-translate-y-0.5 hover:border-teal-600 hover:text-ink-900"
+            }`}
+          >
+            {TYPE_ICONS[t.value]}
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       <div className="relative">
         <svg
           ref={svgRef}
@@ -216,12 +306,12 @@ export function PremiumChart({
             </filter>
           </defs>
 
-          {primaryPoints.map((p, i) => (
+          {(isCandlestick ? filteredOhlc.map((p) => p.date) : primaryPoints.map((p) => p.date)).map((date, i, arr) => (
             <line
-              key={p.date}
-              x1={toX(primaryPoints, i)}
+              key={date}
+              x1={toXAt(arr, i)}
               y1={PADDING.top}
-              x2={toX(primaryPoints, i)}
+              x2={toXAt(arr, i)}
               y2={HEIGHT - PADDING.bottom}
               style={{ stroke: "var(--line)" }}
               strokeWidth="1"
@@ -235,53 +325,113 @@ export function PremiumChart({
               <circle key={i} cx={d.x} cy={d.y} r={d.size} style={{ fill: "var(--ink-500)" }} opacity={d.opacity} />
             ))}
 
-          {filteredSeries.map((s, si) => {
-            const coords = s.points.map((p, i) => [toX(s.points, i), toY(p.value)] as [number, number]);
-            const linePath = smoothPath(coords);
-            const areaPath =
-              s.fill && coords.length > 0
-                ? `${linePath} L ${coords[coords.length - 1][0]} ${HEIGHT - PADDING.bottom} L ${coords[0][0]} ${HEIGHT - PADDING.bottom} Z`
-                : null;
-            return (
-              <g key={si}>
-                {areaPath && <path d={areaPath} fill={`url(#${uid}-fill-${si})`} />}
+          {isCandlestick &&
+            (() => {
+              const candleWidth = Math.max(2, Math.min(14, plotW / filteredOhlc.length - 3));
+              return filteredOhlc.map((p, i) => {
+                const x = toXAt(filteredOhlc, i);
+                const up = p.close >= p.open;
+                const color = up ? "var(--good-600)" : "var(--crit-600)";
+                const bodyTop = toY(Math.max(p.open, p.close));
+                const bodyBottom = toY(Math.min(p.open, p.close));
+                return (
+                  <g key={p.date}>
+                    <line x1={x} y1={toY(p.high)} x2={x} y2={toY(p.low)} style={{ stroke: color }} strokeWidth="1" />
+                    <rect
+                      x={x - candleWidth / 2}
+                      y={bodyTop}
+                      width={candleWidth}
+                      height={Math.max(1, bodyBottom - bodyTop)}
+                      style={{ fill: color }}
+                    />
+                  </g>
+                );
+              });
+            })()}
+
+          {chartType === "bar" &&
+            primaryPoints.map((p, i) => {
+              const x = toXAt(primaryPoints, i);
+              const barWidth = Math.max(2, Math.min(16, plotW / primaryPoints.length - 3));
+              const y = toY(p.value);
+              return (
+                <rect
+                  key={p.date}
+                  x={x - barWidth / 2}
+                  y={y}
+                  width={barWidth}
+                  height={Math.max(1, HEIGHT - PADDING.bottom - y)}
+                  style={{ fill: series[0]?.color ?? "var(--teal-600)" }}
+                  opacity={0.85}
+                />
+              );
+            })}
+
+          {(chartType === "line" || chartType === "compare") &&
+            filteredSeries.map((s, si) => {
+              const coords = s.points.map((p, i) => [toXAt(s.points, i), toY(p.value)] as [number, number]);
+              const linePath = smoothPath(coords);
+              const areaPath =
+                s.fill && coords.length > 0
+                  ? `${linePath} L ${coords[coords.length - 1][0]} ${HEIGHT - PADDING.bottom} L ${coords[0][0]} ${HEIGHT - PADDING.bottom} Z`
+                  : null;
+              return (
+                <g key={si}>
+                  {areaPath && <path d={areaPath} fill={`url(#${uid}-fill-${si})`} />}
+                  <path
+                    d={linePath}
+                    fill="none"
+                    style={{ stroke: s.color }}
+                    strokeWidth={si === 0 ? 2.5 : 2}
+                    strokeDasharray={s.dashed ? "6 5" : undefined}
+                    strokeLinejoin="round"
+                    strokeLinecap="round"
+                  />
+                </g>
+              );
+            })}
+
+          {chartType === "bar" &&
+            filteredSeries.slice(1).map((s, si) => {
+              const coords = s.points.map((p, i) => [toXAt(s.points, i), toY(p.value)] as [number, number]);
+              return (
                 <path
-                  d={linePath}
+                  key={si}
+                  d={smoothPath(coords)}
                   fill="none"
                   style={{ stroke: s.color }}
-                  strokeWidth={si === 0 ? 2.5 : 2}
+                  strokeWidth={2}
                   strokeDasharray={s.dashed ? "6 5" : undefined}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
-              </g>
-            );
-          })}
+              );
+            })}
 
-          {hoverDate &&
+          {hoverDate && !isCandlestick &&
             hoverPointsBySeries.map(
               ({ series: s, point }, si) =>
                 point && (
                   <g key={si}>
                     {si === 0 && (
                       <line
-                        x1={toX(s.points, s.points.indexOf(point))}
+                        x1={toXAt(s.points, s.points.indexOf(point))}
                         y1={PADDING.top}
-                        x2={toX(s.points, s.points.indexOf(point))}
+                        x2={toXAt(s.points, s.points.indexOf(point))}
                         y2={HEIGHT - PADDING.bottom}
                         style={{ stroke: "var(--line)" }}
                         strokeWidth="1"
                       />
                     )}
                     <circle
-                      cx={toX(s.points, s.points.indexOf(point))}
+                      cx={toXAt(s.points, s.points.indexOf(point))}
                       cy={toY(point.value)}
                       r="10"
                       style={{ fill: s.color }}
                       opacity="0.15"
                     />
                     <circle
-                      cx={toX(s.points, s.points.indexOf(point))}
+                      cx={toXAt(s.points, s.points.indexOf(point))}
                       cy={toY(point.value)}
                       r="4.5"
                       style={{ fill: "var(--paper-0)", stroke: s.color }}
@@ -291,13 +441,23 @@ export function PremiumChart({
                   </g>
                 )
             )}
+
+          {hoverDate && isCandlestick && hoverOhlc && (
+            <line
+              x1={toXAt(filteredOhlc, filteredOhlc.indexOf(hoverOhlc))}
+              y1={PADDING.top}
+              x2={toXAt(filteredOhlc, filteredOhlc.indexOf(hoverOhlc))}
+              y2={HEIGHT - PADDING.bottom}
+              style={{ stroke: "var(--line)" }}
+              strokeWidth="1"
+            />
+          )}
         </svg>
 
-        {hoverDate &&
-          hoverPointsBySeries[0]?.point &&
+        {hoverDate && !isCandlestick && hoverPointsBySeries[0]?.point &&
           (() => {
             const p = hoverPointsBySeries[0].point!;
-            const x = toX(hoverPointsBySeries[0].series.points, hoverPointsBySeries[0].series.points.indexOf(p));
+            const x = toXAt(hoverPointsBySeries[0].series.points, hoverPointsBySeries[0].series.points.indexOf(p));
             const y = toY(p.value);
             return (
               <div
@@ -322,6 +482,39 @@ export function PremiumChart({
                         </p>
                       )
                   )}
+                  <div className="absolute left-1/2 -bottom-1.5 h-3 w-3 -translate-x-1/2 rotate-45 bg-ink-900 dark:bg-paper-0" />
+                </div>
+              </div>
+            );
+          })()}
+
+        {hoverDate && isCandlestick && hoverOhlc &&
+          (() => {
+            const x = toXAt(filteredOhlc, filteredOhlc.indexOf(hoverOhlc));
+            const y = toY(hoverOhlc.high);
+            return (
+              <div
+                className="pointer-events-none absolute transition-all duration-100 ease-out"
+                style={{
+                  left: `${(x / WIDTH) * 100}%`,
+                  top: `${(y / HEIGHT) * 100}%`,
+                  transform: "translate(-50%, -110%)",
+                }}
+              >
+                <div className="relative rounded-lg bg-ink-900 px-3 py-1.5 shadow-lg dark:bg-paper-0">
+                  <p className="text-xs font-semibold whitespace-nowrap text-paper-0 dark:text-ink-900">
+                    {new Date(hoverOhlc.date).toLocaleDateString()}
+                  </p>
+                  <p className="text-xs whitespace-nowrap text-paper-0/90 dark:text-ink-900/80">
+                    O {valuePrefix}
+                    {hoverOhlc.open.toFixed(2)} · H {valuePrefix}
+                    {hoverOhlc.high.toFixed(2)}
+                  </p>
+                  <p className="text-xs whitespace-nowrap text-paper-0/90 dark:text-ink-900/80">
+                    L {valuePrefix}
+                    {hoverOhlc.low.toFixed(2)} · C {valuePrefix}
+                    {hoverOhlc.close.toFixed(2)}
+                  </p>
                   <div className="absolute left-1/2 -bottom-1.5 h-3 w-3 -translate-x-1/2 rotate-45 bg-ink-900 dark:bg-paper-0" />
                 </div>
               </div>

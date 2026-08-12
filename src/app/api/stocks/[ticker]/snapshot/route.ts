@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getQuote, getMomentum, getHistoricalSeries, getQuotes } from "@/lib/quotes";
+import { getQuote, getMomentum, getHistoricalSeries, getHistoricalOHLC, getQuotes } from "@/lib/quotes";
 import { getCongressTrades } from "@/lib/congressTrading";
 import { getSector } from "@/lib/sectors";
 import { getParsedHoldings } from "@/lib/holdings";
@@ -172,11 +172,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
   const { ticker: rawTicker } = await params;
   const ticker = rawTicker.toUpperCase();
 
-  const [quote, momentum, series, dailyDigests, weeklyTrends, spyMomentum, congressTrades, bucketFit] =
+  const [quote, momentum, series, ohlc, dailyDigests, weeklyTrends, spyMomentum, congressTrades, bucketFit] =
     await Promise.all([
       getQuote(ticker),
       getMomentum(ticker),
       getHistoricalSeries(ticker, "1y"),
+      getHistoricalOHLC(ticker, "1y"),
       prisma.report.findMany({
         where: { userId, type: "DAILY_DIGEST" },
         orderBy: { generatedAt: "desc" },
@@ -218,6 +219,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
     momentum,
     marketMomentum1Month: spyMomentum?.pct1Month ?? null,
     chartSeries,
+    ohlc: ohlc ?? undefined,
     commentary,
     position,
     fitScore,

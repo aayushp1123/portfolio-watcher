@@ -146,6 +146,59 @@ export async function getHistoricalSeries(ticker: string, range = "1y"): Promise
   }
 }
 
+export interface OhlcPoint {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number | null;
+}
+
+/** Full OHLC candles from the same free Yahoo chart endpoint -- it already
+ * returns open/high/low/close/volume per day, this just extracts all of
+ * them instead of only close. Used for bar/candlestick chart rendering. */
+export async function getHistoricalOHLC(ticker: string, range = "1y"): Promise<OhlcPoint[] | null> {
+  try {
+    const res = await fetch(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?range=${range}&interval=1d`,
+      { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const result = data?.chart?.result?.[0];
+    const timestamps: number[] = result?.timestamp ?? [];
+    const quote = result?.indicators?.quote?.[0] ?? {};
+    const opens: Array<number | null> = quote.open ?? [];
+    const highs: Array<number | null> = quote.high ?? [];
+    const lows: Array<number | null> = quote.low ?? [];
+    const closes: Array<number | null> = quote.close ?? [];
+    const volumes: Array<number | null> = quote.volume ?? [];
+
+    const series: OhlcPoint[] = [];
+    for (let i = 0; i < timestamps.length; i++) {
+      const open = opens[i];
+      const high = highs[i];
+      const low = lows[i];
+      const close = closes[i];
+      if (typeof open !== "number" || typeof high !== "number" || typeof low !== "number" || typeof close !== "number")
+        continue;
+      series.push({
+        date: new Date(timestamps[i] * 1000).toISOString().slice(0, 10),
+        open,
+        high,
+        low,
+        close,
+        volume: typeof volumes[i] === "number" ? volumes[i] : null,
+      });
+    }
+    return series.length >= 2 ? series : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Fetches momentum for many tickers in parallel; failed lookups are simply omitted. */
 export async function getMomentums(tickers: string[]): Promise<Map<string, Momentum>> {
   const unique = [...new Set(tickers)];
