@@ -5,6 +5,8 @@ import { dailyDigestSchema, toJsonSchema, type DailyDigest } from "@/lib/reports
 
 const SYSTEM_PROMPT = `You are producing a daily portfolio digest for someone who has NEVER invested before. Every financial term needs a short, plain-English explanation inline — never assume prior investing knowledge.
 
+SOURCE-OF-TRUTH RULE (governs everything below, read this first): every specific fact, number, date, headline, filing, trade, or earnings figure you state MUST come from the real data sections given to you in this prompt — never from outside knowledge, memory of past training data about recent events, or invention. If something isn't in the data given below, you don't know it happened, full stop. This does NOT mean you can't reason — you should absolutely apply your general knowledge of how businesses, industries, and markets work (e.g. what a semiconductor cycle is, why rate cuts affect growth stocks, how a company's business model creates risk) to interpret the real data you're given. The line is: general analytical/domain reasoning is expected and required; specific claimed facts, events, or numbers not present in the data below are forbidden. If you're not confident a data point was actually given to you, leave it out rather than guess.
+
 LIVE PRICES: Each holding and watchlist ticker below includes a LIVE PRICE fetched moments ago from a real market data source when available — treat that number as ground truth, use it directly and confidently, no hedging. Only if a ticker has no live price available should you fall back to your best general knowledge and note it's approximate — that is the rare case, not the default.
 
 RECENT REAL HEADLINES: You may be given a list of REAL, recently-published headlines (with publisher and date) pulled from live RSS feeds for these exact tickers — these are genuine, verifiable, not something you need to caveat. Weave relevant ones into portfolioSummary, individual holdings' riskReason/ratingReason, dividendNotes, bottomLine, and especially whatToWatchNext wherever they're actually relevant — this is real, current information you wouldn't otherwise have. Do not reference a headline that isn't in the list, and don't force one in in if none of them are relevant to a given holding.
@@ -23,13 +25,15 @@ MARKET CONTEXT (S&P 500 momentum, VIX): If given, use the S&P 500 (SPY) momentum
 
 CONGRESSIONAL TRADING: You may be given real, recent stock trades disclosed by members of Congress (via the STOCK Act) for these exact tickers — genuine public disclosures, not something to caveat. If a holding has notable recent congressional buying or selling (especially multiple members, or from committees relevant to that sector), mention it briefly as one data point among many — never treat it as a standalone reason to buy or sell, and never invent a trade not in the list.
 
+REAL MULTI-YEAR EARNINGS HISTORY: You may be given each company's actual reported annual revenue and net income for the last several fiscal years, straight from their own SEC filings, plus a computed trend (improving/worsening/mixed). This is real, verifiable data — use it as the primary evidence for "is this business actually executing well," not a guess from memory. Do not state a specific year's revenue or income figure that isn't in the list given. Do not claim the company "beat" or "missed" Wall Street analyst estimates — you are not given analyst consensus data, so you cannot know that; instead speak only to the real reported trend (e.g. "revenue has grown for four straight years" or "net income has declined for two consecutive years"). Weigh both the bull case (what's going right, grounded in the real trend/momentum/filings given) and the bear case (what's going wrong or could) before landing on a rating — a credible Buy still names the real risk, and a credible Sell still names what the bulls would point to.
+
 EXAMPLE OF EXPECTED TONE AND DEPTH (for calibration only, not real data — do not reuse these numbers or this ticker):
 "NVDA — $224.50 (live). riskReason: 'Concentrated in a single fast-moving sector (AI infrastructure semiconductors); a leader with a dominant market position, but the stock's valuation already prices in years of growth, so any slowdown in AI capex would hit it disproportionately compared to a diversified fund.' ratingReason: 'Buy — durable competitive moat in AI accelerators and expanding data-center demand outweigh near-term valuation risk for a long-term holder.'"
 That is the bar: specific, structural reasoning tied to the actual business — not a vague "seems fine" or a generic disclaimer.
 
 RISK RATING METHODOLOGY: Low/Medium/High for every holding, based on (a) volatility/beta, (b) balance sheet health, (c) concentration/political exposure, (d) valuation risk. For ETFs, factor in diversification but still flag sector concentration.
 
-RATING METHODOLOGY (Buy/Hold/Sell, required for every holding): Based on your knowledge of the company/fund and your own DEPTH REQUIREMENT reasoning above plus this user's specific exit rules and cost basis, land on exactly one of Buy/Hold/Sell, stated with confidence, plus a single tight sentence of rationale in ratingReason. Do not cite a specific numeric analyst-consensus count (e.g. "8 Buy/2 Hold") since you cannot verify that live — instead ground the rationale in the fundamentals/momentum/risk reasoning you already did.
+RATING METHODOLOGY (Buy/Hold/Sell, required for every holding): Based on the real earnings trend, momentum, filings, and insider/congressional activity given, weigh the bull case against the bear case (see REAL MULTI-YEAR EARNINGS HISTORY above), then land on exactly one of Buy/Hold/Sell, stated with confidence, plus a single tight sentence of rationale in ratingReason that reflects which side of that bull/bear weighing won and why. Do not cite a specific numeric analyst-consensus count (e.g. "8 Buy/2 Hold") since you cannot verify that live — instead ground the rationale in the real fundamentals/momentum/risk reasoning you already did.
 
 EXIT RULES: For each holding with an active exit rule, use the LIVE PRICE to determine its status:
 - PRICE_TARGET: status is "triggered" if live price >= target value, "approaching" if within 5%, else "ok".
@@ -98,6 +102,20 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
     .map((f) => `- [${f.ticker}] ${f.description}, filed ${f.filedAt}`)
     .join("\n") || "(none in the recent record)";
 
+  const earningsList =
+    [...context.earningsHistories.entries()]
+      .map(([ticker, h]) => {
+        const years = h.points
+          .filter((p) => p.revenue != null || p.netIncome != null)
+          .map(
+            (p) =>
+              `FY${p.fiscalYear}: revenue ${p.revenue != null ? `$${(p.revenue / 1e9).toFixed(2)}B` : "n/a"}, net income ${p.netIncome != null ? `$${(p.netIncome / 1e9).toFixed(2)}B` : "n/a"}`
+          )
+          .join("; ");
+        return `- ${ticker}: revenue trend ${h.revenueTrend}, net income trend ${h.netIncomeTrend}. ${years}`;
+      })
+      .join("\n") || "(none available)";
+
   const macroText = context.macro
     ? `Fed funds rate: ${context.macro.fedFundsRate}% (as of ${context.macro.fedFundsDate}). CPI inflation (YoY): ${context.macro.cpiYoyPct?.toFixed(1)}%. Unemployment: ${context.macro.unemploymentRate}% (as of ${context.macro.unemploymentDate}).`
     : "(not configured — reason from general knowledge if macro context is relevant)";
@@ -137,6 +155,9 @@ ${filingsList}
 
 RECENT INSIDER ACTIVITY (SEC Form 4/144, official, genuine):
 ${insiderList}
+
+REAL MULTI-YEAR EARNINGS HISTORY (from each company's own SEC filings, official, genuine — trend already computed from real revenue/net income, never from EPS since stock splits distort it):
+${earningsList}
 
 CURRENT MACRO CONTEXT:
 ${macroText}

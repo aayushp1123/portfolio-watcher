@@ -114,3 +114,153 @@ export async function getInsiderActivity(tickers: string[], perTicker = 5): Prom
   const results = await Promise.all(tickers.map((t) => getRecentFilings(t, ["4", "144"], perTicker)));
   return results.flat();
 }
+
+export interface EarningsHistoryPoint {
+  fiscalYear: number;
+  /** Real reported annual revenue in USD, from the company's own 10-K -- null if not tagged. */
+  revenue: number | null;
+  /** Real reported annual net income in USD -- null if not tagged. */
+  netIncome: number | null;
+  /** Real reported diluted EPS, from the company's own 10-K -- shown for reference only, never
+   * used for trend classification since stock splits create discontinuities that look like a
+   * real business change but aren't (see revenueTrend/netIncomeTrend instead). Null if not tagged. */
+  eps: number | null;
+  filedAt: string;
+}
+
+export interface EarningsHistory {
+  ticker: string;
+  /** Sorted ascending by fiscal year, most recent ~8 annual reports available. */
+  points: EarningsHistoryPoint[];
+  revenueTrend: "improving" | "worsening" | "mixed" | "unknown";
+  netIncomeTrend: "improving" | "worsening" | "mixed" | "unknown";
+}
+
+// Different companies/filing years tag the same concept differently. Checks
+// every tag and merges by fiscal year (does NOT stop at the first tag with
+// any data) so a company that switched XBRL tags mid-history -- e.g. Apple
+// moved off "Revenues" onto the ASC 606 contract-revenue tag in FY2019 --
+// still gets complete year-by-year coverage instead of silently truncating.
+const REVENUE_TAGS = [
+  "Revenues",
+  "RevenueFromContractWithCustomerExcludingAssessedTax",
+  "RevenueFromContractWithCustomerIncludingAssessedTax",
+  "SalesRevenueNet",
+  "SalesRevenueGoodsNet",
+];
+const NET_INCOME_TAGS = ["NetIncomeLoss", "ProfitLoss"];
+const EPS_TAGS = ["EarningsPerShareDiluted", "EarningsPerShareBasicAndDiluted"];
+
+function extractAnnualSeries(
+  usGaapFacts: Record<string, { units?: Record<string, Array<Record<string, unknown>>> }>,
+  tags: string[]
+): Map<number, { val: number; filed: string }> {
+  const byYear = new Map<number, { val: number; filed: string }>();
+  for (const tag of tags) {
+    const units = usGaapFacts?.[tag]?.units;
+    if (!units) continue;
+    for (const entries of Object.values(units)) {
+      for (const entry of entries) {
+        if (entry.form !== "10-K" || entry.fp !== "FY" || typeof entry.val !== "number") continue;
+        const end = entry.end as string | undefined;
+        const fy = typeof entry.fy === "number" ? entry.fy : end ? Number(end.slice(0, 4)) : null;
+        const filed = (entry.filed as string) ?? "";
+        if (!fy) continue;
+        // Only fill years this tag hasn't already supplied a value for, or
+        // replace with a more recently filed (e.g. restated) value.
+        const existing = byYear.get(fy);
+        if (!existing || filed > existing.filed) {
+          byYear.set(fy, { val: entry.val as number, filed });
+        }
+      }
+    }
+  }
+  return byYear;
+}
+
+function computeTrend(values: Array<number | null>): "improving" | "worsening" | "mixed" | "unknown" {
+  const valid = values.filter((v): v is number => v != null);
+  if (valid.length < 2) return "unknown";
+  let increases = 0;
+  let decreases = 0;
+  for (let i = 1; i < valid.length; i++) {
+    if (valid[i] > valid[i - 1]) increases++;
+    else if (valid[i] < valid[i - 1]) decreases++;
+  }
+  if (increases === 0 && decreases === 0) return "unknown";
+  if (increases >= decreases * 2) return "improving";
+  if (decreases >= increases * 2) return "worsening";
+  return "mixed";
+}
+
+/** Real historical annual revenue/net income/EPS for a ticker, straight from
+ * the SEC's XBRL "company facts" API -- the same structured data extracted
+ * from every company's actual filed 10-Ks, free and official. Used to
+ * ground reasoning in real reported multi-year trends instead of guessing
+ * whether a company is executing well.
+ *
+ * Trend is computed from revenue and net income only, never EPS -- EPS is a
+ * per-share figure, so a stock split (e.g. NVDA's 10-for-1 split in 2024)
+ * creates a discontinuity that looks like a business collapsed when nothing
+ * about the underlying company changed. Revenue and net income are total
+ * dollar figures, unaffected by share count, so they're the only reliable
+ * real signal for "is this company's business actually improving."
+ *
+ * Deliberately does not claim "beat/missed Wall Street consensus" -- this
+ * app has no free source for analyst estimates, so it only reports the real
+ * reported growth trend, which is what it can actually verify. */
+export async function getEarningsHistory(ticker: string, years = 8): Promise<EarningsHistory | null> {
+  const cikMap = await getCikMap();
+  const cik = cikMap.get(ticker.toUpperCase());
+  if (!cik) return null;
+
+  try {
+    const res = await fetch(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`, {
+      headers: { "User-Agent": SEC_USER_AGENT },
+      next: { revalidate: 86400 },
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    const usGaap = data?.facts?.["us-gaap"];
+    if (!usGaap) return null;
+
+    const revenueByYear = extractAnnualSeries(usGaap, REVENUE_TAGS);
+    const netIncomeByYear = extractAnnualSeries(usGaap, NET_INCOME_TAGS);
+    const epsByYear = extractAnnualSeries(usGaap, EPS_TAGS);
+
+    const allYears = [
+      ...new Set([...revenueByYear.keys(), ...netIncomeByYear.keys(), ...epsByYear.keys()]),
+    ].sort((a, b) => a - b);
+    const recentYears = allYears.slice(-years);
+    if (recentYears.length === 0) return null;
+
+    const points: EarningsHistoryPoint[] = recentYears.map((fy) => ({
+      fiscalYear: fy,
+      revenue: revenueByYear.get(fy)?.val ?? null,
+      netIncome: netIncomeByYear.get(fy)?.val ?? null,
+      eps: epsByYear.get(fy)?.val ?? null,
+      filedAt: revenueByYear.get(fy)?.filed ?? netIncomeByYear.get(fy)?.filed ?? epsByYear.get(fy)?.filed ?? "",
+    }));
+
+    return {
+      ticker,
+      points,
+      revenueTrend: computeTrend(points.map((p) => p.revenue)),
+      netIncomeTrend: computeTrend(points.map((p) => p.netIncome)),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Real earnings history for several tickers, in parallel; failed/unavailable lookups are simply omitted. */
+export async function getEarningsHistories(tickers: string[]): Promise<Map<string, EarningsHistory>> {
+  const results = await Promise.all(tickers.map(async (t) => [t, await getEarningsHistory(t)] as const));
+  const map = new Map<string, EarningsHistory>();
+  for (const [ticker, history] of results) {
+    if (history) map.set(ticker, history);
+  }
+  return map;
+}

@@ -2,7 +2,13 @@ import { prisma } from "@/lib/prisma";
 import { getParsedHoldings } from "@/lib/holdings";
 import { getQuotes, getMomentums, getQuote, getMomentum, type Quote, type Momentum } from "@/lib/quotes";
 import { getPersonalizedNews, type NewsArticle } from "@/lib/newsFeed";
-import { getMaterialFilings, getInsiderActivity, type SecFiling } from "@/lib/secEdgar";
+import {
+  getMaterialFilings,
+  getInsiderActivity,
+  getEarningsHistories,
+  type SecFiling,
+  type EarningsHistory,
+} from "@/lib/secEdgar";
 import { getMacroSnapshot, type MacroSnapshot } from "@/lib/fred";
 import { getCongressTrades, type CongressTrade } from "@/lib/congressTrading";
 import { getCorrelationFlags, type CorrelationFlag } from "@/lib/portfolioAnalytics";
@@ -56,6 +62,8 @@ export interface UserReportContext {
   vix: Quote | null;
   /** Real pairwise correlation across the user's holdings — flags hidden concentration risk. */
   correlationFlags: CorrelationFlag[];
+  /** Real multi-year revenue/net income history straight from each company's own SEC filings — keyed by ticker. */
+  earningsHistories: Map<string, EarningsHistory>;
 }
 
 /** Builds the per-user context passed into an AI report generation call. Reads
@@ -75,19 +83,31 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
   // All free, unauthenticated (except macro, which no-ops without a key) —
   // fetched in parallel to keep report generation latency reasonable.
   const holdingTickers = rawHoldings.map((h) => h.ticker);
-  const [quotes, momentums, recentHeadlines, materialFilings, insiderActivity, macro, congressTrades, marketMomentum, vix, correlationFlags] =
-    await Promise.all([
-      getQuotes(allTickers),
-      getMomentums(allTickers),
-      allTickers.length > 0 ? getPersonalizedNews(allTickers, 12) : Promise.resolve([]),
-      allTickers.length > 0 ? getMaterialFilings(allTickers) : Promise.resolve([]),
-      allTickers.length > 0 ? getInsiderActivity(allTickers) : Promise.resolve([]),
-      getMacroSnapshot(),
-      allTickers.length > 0 ? getCongressTrades(allTickers) : Promise.resolve([]),
-      getMomentum("SPY"),
-      getQuote("^VIX"),
-      holdingTickers.length >= 2 ? getCorrelationFlags(holdingTickers) : Promise.resolve([]),
-    ]);
+  const [
+    quotes,
+    momentums,
+    recentHeadlines,
+    materialFilings,
+    insiderActivity,
+    macro,
+    congressTrades,
+    marketMomentum,
+    vix,
+    correlationFlags,
+    earningsHistories,
+  ] = await Promise.all([
+    getQuotes(allTickers),
+    getMomentums(allTickers),
+    allTickers.length > 0 ? getPersonalizedNews(allTickers, 12) : Promise.resolve([]),
+    allTickers.length > 0 ? getMaterialFilings(allTickers) : Promise.resolve([]),
+    allTickers.length > 0 ? getInsiderActivity(allTickers) : Promise.resolve([]),
+    getMacroSnapshot(),
+    allTickers.length > 0 ? getCongressTrades(allTickers) : Promise.resolve([]),
+    getMomentum("SPY"),
+    getQuote("^VIX"),
+    holdingTickers.length >= 2 ? getCorrelationFlags(holdingTickers) : Promise.resolve([]),
+    allTickers.length > 0 ? getEarningsHistories(allTickers) : Promise.resolve(new Map<string, EarningsHistory>()),
+  ]);
 
   const holdings: PortfolioHolding[] = rawHoldings.map((h) => ({
     ...h,
@@ -128,5 +148,6 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
     marketMomentum,
     vix,
     correlationFlags,
+    earningsHistories,
   };
 }
