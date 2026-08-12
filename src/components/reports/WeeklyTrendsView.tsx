@@ -25,6 +25,8 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
           <Card>
             <div className="flex h-8 overflow-hidden rounded-lg border border-line">
               <InfoTooltip
+                className="h-8"
+                style={{ width: `${report.allocationCheck.actualCoreEtfPct}%` }}
                 label={
                   <>
                     <p className="font-semibold text-ink-900">Core ETFs</p>
@@ -35,14 +37,13 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
                   </>
                 }
               >
-                <div
-                  className="flex h-8 items-center justify-center bg-teal-600 text-xs font-bold text-white"
-                  style={{ width: `${report.allocationCheck.actualCoreEtfPct}%` }}
-                >
+                <div className="flex h-8 w-full items-center justify-center bg-teal-600 text-xs font-bold text-white">
                   {report.allocationCheck.actualCoreEtfPct.toFixed(0)}%
                 </div>
               </InfoTooltip>
               <InfoTooltip
+                className="h-8"
+                style={{ width: `${report.allocationCheck.actualGrowthPct}%` }}
                 label={
                   <>
                     <p className="font-semibold text-ink-900">Individual Growth</p>
@@ -53,14 +54,13 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
                   </>
                 }
               >
-                <div
-                  className="flex h-8 items-center justify-center bg-good-600 text-xs font-bold text-white"
-                  style={{ width: `${report.allocationCheck.actualGrowthPct}%` }}
-                >
+                <div className="flex h-8 w-full items-center justify-center bg-good-600 text-xs font-bold text-white">
                   {report.allocationCheck.actualGrowthPct.toFixed(0)}%
                 </div>
               </InfoTooltip>
               <InfoTooltip
+                className="h-8"
+                style={{ width: `${report.allocationCheck.actualSpeculativePct}%` }}
                 label={
                   <>
                     <p className="font-semibold text-ink-900">Speculative</p>
@@ -71,10 +71,7 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
                   </>
                 }
               >
-                <div
-                  className="flex h-8 items-center justify-center bg-warn-600 text-xs font-bold text-white"
-                  style={{ width: `${report.allocationCheck.actualSpeculativePct}%` }}
-                >
+                <div className="flex h-8 w-full items-center justify-center bg-warn-600 text-xs font-bold text-white">
                   {report.allocationCheck.actualSpeculativePct.toFixed(0)}%
                 </div>
               </InfoTooltip>

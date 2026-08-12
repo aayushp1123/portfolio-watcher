@@ -1,15 +1,30 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 
 /** Small hover/focus-triggered explanatory bubble. Purely additive -- wraps
- * existing content without changing its visible layout or position. */
-export function InfoTooltip({ children, label }: { children: ReactNode; label: ReactNode }) {
+ * existing content without changing its visible layout or position.
+ * `className`/`style` land on the actual wrapping element (not a nested
+ * child), so callers relying on flex-item sizing (e.g. a percentage width
+ * inside a flex row) can pass it straight through and it still applies to
+ * the element the layout actually measures. */
+export function InfoTooltip({
+  children,
+  label,
+  className = "",
+  style,
+}: {
+  children: ReactNode;
+  label: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const [show, setShow] = useState(false);
 
   return (
     <span
-      className="relative inline-flex"
+      className={`relative inline-flex ${className}`}
+      style={style}
       onMouseEnter={() => setShow(true)}
       onMouseLeave={() => setShow(false)}
     >
