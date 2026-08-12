@@ -113,6 +113,17 @@ export async function getHistoricalCloses(ticker: string, range = "3mo"): Promis
   }
 }
 
+/** Historical closes for many tickers in parallel; failed lookups are simply omitted. */
+export async function getManyHistoricalCloses(tickers: string[], range = "6mo"): Promise<Map<string, number[]>> {
+  const unique = [...new Set(tickers)];
+  const results = await Promise.all(unique.map(async (t) => [t, await getHistoricalCloses(t, range)] as const));
+  const map = new Map<string, number[]>();
+  for (const [ticker, closes] of results) {
+    if (closes) map.set(ticker, closes);
+  }
+  return map;
+}
+
 export interface PricePoint {
   date: string;
   close: number;

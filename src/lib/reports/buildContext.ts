@@ -1,6 +1,17 @@
 import { prisma } from "@/lib/prisma";
 import { getParsedHoldings } from "@/lib/holdings";
-import { getQuotes, getMomentums, getQuote, getMomentum, type Quote, type Momentum } from "@/lib/quotes";
+import {
+  getQuotes,
+  getMomentums,
+  getQuote,
+  getMomentum,
+  getManyHistoricalCloses,
+  getHistoricalCloses,
+  type Quote,
+  type Momentum,
+} from "@/lib/quotes";
+import { computeRiskMetrics, type RiskMetrics } from "@/lib/riskMetrics";
+import { getShortVolumes, type ShortVolumeData } from "@/lib/finra";
 import { getPersonalizedNews, type NewsArticle } from "@/lib/newsFeed";
 import {
   getMaterialFilings,
@@ -23,6 +34,10 @@ export interface PortfolioHolding {
   livePrice: Quote | null;
   /** Real, computed technical signals from actual daily closes — null if unavailable. */
   momentum: Momentum | null;
+  /** Real, computed realized volatility and beta vs. S&P 500 — null if unavailable. */
+  riskMetrics: RiskMetrics | null;
+  /** Real daily short-sale-volume % from FINRA, for the most recent trading day — null if unavailable. */
+  shortVolume: ShortVolumeData | null;
 }
 
 export interface UserReportContext {
@@ -44,7 +59,14 @@ export interface UserReportContext {
   /** Whether the user has an active Plaid connection at all — distinguishes
    * "connected account with $0 cash" from "no account connected, N/A". */
   hasBrokerageConnection: boolean;
-  watchlist: Array<{ ticker: string; note: string | null; livePrice: Quote | null; momentum: Momentum | null }>;
+  watchlist: Array<{
+    ticker: string;
+    note: string | null;
+    livePrice: Quote | null;
+    momentum: Momentum | null;
+    riskMetrics: RiskMetrics | null;
+    shortVolume: ShortVolumeData | null;
+  }>;
   /** Real, recently-published headlines for the user's own tickers, free via
    * RSS — supplemental grounding since there's no live search tool. */
   recentHeadlines: NewsArticle[];
@@ -95,6 +117,9 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
     vix,
     correlationFlags,
     earningsHistories,
+    historicalClosesByTicker,
+    spyCloses,
+    shortVolumes,
   ] = await Promise.all([
     getQuotes(allTickers),
     getMomentums(allTickers),
@@ -107,12 +132,17 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
     getQuote("^VIX"),
     holdingTickers.length >= 2 ? getCorrelationFlags(holdingTickers) : Promise.resolve([]),
     allTickers.length > 0 ? getEarningsHistories(allTickers) : Promise.resolve(new Map<string, EarningsHistory>()),
+    allTickers.length > 0 ? getManyHistoricalCloses(allTickers) : Promise.resolve(new Map<string, number[]>()),
+    getHistoricalCloses("SPY", "6mo"),
+    allTickers.length > 0 ? getShortVolumes(allTickers) : Promise.resolve(new Map<string, ShortVolumeData>()),
   ]);
 
   const holdings: PortfolioHolding[] = rawHoldings.map((h) => ({
     ...h,
     livePrice: quotes.get(h.ticker) ?? null,
     momentum: momentums.get(h.ticker) ?? null,
+    riskMetrics: computeRiskMetrics(historicalClosesByTicker.get(h.ticker) ?? null, spyCloses),
+    shortVolume: shortVolumes.get(h.ticker) ?? null,
   }));
 
   return {
@@ -139,6 +169,8 @@ export async function buildUserContext(userId: string): Promise<UserReportContex
       note: w.note,
       livePrice: quotes.get(w.ticker) ?? null,
       momentum: momentums.get(w.ticker) ?? null,
+      riskMetrics: computeRiskMetrics(historicalClosesByTicker.get(w.ticker) ?? null, spyCloses),
+      shortVolume: shortVolumes.get(w.ticker) ?? null,
     })),
     recentHeadlines,
     materialFilings,

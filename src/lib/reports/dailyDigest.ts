@@ -2,6 +2,7 @@ import { getGeminiClient, getGeminiModel } from "@/lib/gemini";
 import { prisma } from "@/lib/prisma";
 import { buildUserContext } from "@/lib/reports/buildContext";
 import { dailyDigestSchema, toJsonSchema, type DailyDigest } from "@/lib/reports/schemas";
+import { computeTrailingPE } from "@/lib/riskMetrics";
 
 const SYSTEM_PROMPT = `You are producing a daily portfolio digest for someone who has NEVER invested before. Every financial term needs a short, plain-English explanation inline — never assume prior investing knowledge.
 
@@ -25,13 +26,15 @@ MARKET CONTEXT (S&P 500 momentum, VIX): If given, use the S&P 500 (SPY) momentum
 
 CONGRESSIONAL TRADING: You may be given real, recent stock trades disclosed by members of Congress (via the STOCK Act) for these exact tickers — genuine public disclosures, not something to caveat. If a holding has notable recent congressional buying or selling (especially multiple members, or from committees relevant to that sector), mention it briefly as one data point among many — never treat it as a standalone reason to buy or sell, and never invent a trade not in the list.
 
-REAL MULTI-YEAR EARNINGS HISTORY: You may be given each company's actual reported annual revenue and net income for the last several fiscal years, straight from their own SEC filings, plus a computed trend (improving/worsening/mixed). This is real, verifiable data — use it as the primary evidence for "is this business actually executing well," not a guess from memory. Do not state a specific year's revenue or income figure that isn't in the list given. Do not claim the company "beat" or "missed" Wall Street analyst estimates — you are not given analyst consensus data, so you cannot know that; instead speak only to the real reported trend (e.g. "revenue has grown for four straight years" or "net income has declined for two consecutive years"). Weigh both the bull case (what's going right, grounded in the real trend/momentum/filings given) and the bear case (what's going wrong or could) before landing on a rating — a credible Buy still names the real risk, and a credible Sell still names what the bulls would point to.
+REAL MULTI-YEAR EARNINGS HISTORY: You may be given each company's actual reported annual revenue, net income, and fundamentals (debt-to-assets ratio, cash position, free cash flow trend, trailing P/E) for the last several fiscal years, straight from their own SEC filings — real, verifiable data, not a guess from memory. Use debt/assets and cash position as your real evidence for "balance sheet health" (previously something you'd have had to guess at); use free cash flow trend as real evidence for whether the business is actually generating cash, not just accounting profit; use trailing P/E as real evidence for whether the stock looks expensive relative to its own earnings. Do not state a specific figure that isn't in the list given. Do not claim the company "beat" or "missed" Wall Street analyst estimates — you are not given analyst consensus data, so you cannot know that; instead speak only to the real reported trend (e.g. "revenue has grown for four straight years" or "net income has declined for two consecutive years"). Weigh both the bull case (what's going right, grounded in the real trend/momentum/filings given) and the bear case (what's going wrong or could) before landing on a rating — a credible Buy still names the real risk, and a credible Sell still names what the bulls would point to.
+
+QUANT RISK DATA: You may be given real computed annualized volatility, beta vs. the S&P 500, max drawdown (the worst real peak-to-trough decline), a return-to-volatility ratio, and daily short-sale-volume % from FINRA for each ticker. Use these as your real evidence for volatility/beta risk-rating factors instead of guessing — e.g. "high beta (1.8) and a max drawdown of 45% mean this holding can move sharply against you" is grounded; a generic "this seems volatile" is not.
 
 EXAMPLE OF EXPECTED TONE AND DEPTH (for calibration only, not real data — do not reuse these numbers or this ticker):
 "NVDA — $224.50 (live). riskReason: 'Concentrated in a single fast-moving sector (AI infrastructure semiconductors); a leader with a dominant market position, but the stock's valuation already prices in years of growth, so any slowdown in AI capex would hit it disproportionately compared to a diversified fund.' ratingReason: 'Buy — durable competitive moat in AI accelerators and expanding data-center demand outweigh near-term valuation risk for a long-term holder.'"
 That is the bar: specific, structural reasoning tied to the actual business — not a vague "seems fine" or a generic disclaimer.
 
-RISK RATING METHODOLOGY: Low/Medium/High for every holding, based on (a) volatility/beta, (b) balance sheet health, (c) concentration/political exposure, (d) valuation risk. For ETFs, factor in diversification but still flag sector concentration.
+RISK RATING METHODOLOGY: Low/Medium/High for every holding, based on (a) the real volatility/beta/max drawdown given, (b) the real debt-to-assets/cash/free-cash-flow-trend given, (c) concentration/political exposure, (d) the real trailing P/E given as a valuation-risk signal. For ETFs, factor in diversification but still flag sector concentration.
 
 RATING METHODOLOGY (Buy/Hold/Sell, required for every holding): Based on the real earnings trend, momentum, filings, and insider/congressional activity given, weigh the bull case against the bear case (see REAL MULTI-YEAR EARNINGS HISTORY above), then land on exactly one of Buy/Hold/Sell, stated with confidence, plus a single tight sentence of rationale in ratingReason that reflects which side of that bull/bear weighing won and why. Do not cite a specific numeric analyst-consensus count (e.g. "8 Buy/2 Hold") since you cannot verify that live — instead ground the rationale in the real fundamentals/momentum/risk reasoning you already did.
 
@@ -62,13 +65,27 @@ function formatMomentum(m: import("@/lib/quotes").Momentum | null): string {
   return `MOMENTUM: ${parts.join(", ")}`;
 }
 
+function formatRisk(
+  risk: import("@/lib/riskMetrics").RiskMetrics | null,
+  shortVolume: import("@/lib/finra").ShortVolumeData | null
+): string {
+  const parts = [
+    risk?.annualizedVolatilityPct != null ? `annualized volatility ${risk.annualizedVolatilityPct.toFixed(0)}%` : null,
+    risk?.beta != null ? `beta ${risk.beta.toFixed(2)} vs. S&P 500` : null,
+    shortVolume != null
+      ? `${shortVolume.shortVolumePct.toFixed(0)}% of ${shortVolume.tradingDate} volume was short-sale volume`
+      : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? `QUANT RISK: ${parts.join(", ")}` : "";
+}
+
 function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>): string {
   const holdingsList = context.holdings
     .map((h) => {
       const priceInfo = h.livePrice
         ? `LIVE PRICE $${h.livePrice.price.toFixed(2)}${h.livePrice.fiftyTwoWeekHigh != null ? ` (52-wk high $${h.livePrice.fiftyTwoWeekHigh.toFixed(2)}, low $${h.livePrice.fiftyTwoWeekLow?.toFixed(2)})` : ""}`
         : "no live price available";
-      return `- ${h.ticker} (${h.name}): ${h.shares} shares, market value $${h.marketValue.toFixed(2)}, cost basis ${h.costBasis != null ? `$${h.costBasis.toFixed(2)}` : "unknown"}, ${priceInfo}. ${formatMomentum(h.momentum)}`;
+      return `- ${h.ticker} (${h.name}): ${h.shares} shares, market value $${h.marketValue.toFixed(2)}, cost basis ${h.costBasis != null ? `$${h.costBasis.toFixed(2)}` : "unknown"}, ${priceInfo}. ${formatMomentum(h.momentum)} ${formatRisk(h.riskMetrics, h.shortVolume)}`;
     })
     .join("\n");
 
@@ -83,7 +100,7 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
   const watchlistList = context.watchlist
     .map((w) => {
       const priceInfo = w.livePrice ? `LIVE PRICE $${w.livePrice.price.toFixed(2)}` : "no live price available";
-      return `- ${w.ticker}${w.note ? ` (${w.note})` : ""}, ${priceInfo}. ${formatMomentum(w.momentum)}`;
+      return `- ${w.ticker}${w.note ? ` (${w.note})` : ""}, ${priceInfo}. ${formatMomentum(w.momentum)} ${formatRisk(w.riskMetrics, w.shortVolume)}`;
     })
     .join("\n") || "(none)";
 
@@ -102,6 +119,10 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
     .map((f) => `- [${f.ticker}] ${f.description}, filed ${f.filedAt}`)
     .join("\n") || "(none in the recent record)";
 
+  const livePriceByTicker = new Map<string, number>();
+  for (const h of context.holdings) if (h.livePrice) livePriceByTicker.set(h.ticker, h.livePrice.price);
+  for (const w of context.watchlist) if (w.livePrice) livePriceByTicker.set(w.ticker, w.livePrice.price);
+
   const earningsList =
     [...context.earningsHistories.entries()]
       .map(([ticker, h]) => {
@@ -112,7 +133,20 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
               `FY${p.fiscalYear}: revenue ${p.revenue != null ? `$${(p.revenue / 1e9).toFixed(2)}B` : "n/a"}, net income ${p.netIncome != null ? `$${(p.netIncome / 1e9).toFixed(2)}B` : "n/a"}`
           )
           .join("; ");
-        return `- ${ticker}: revenue trend ${h.revenueTrend}, net income trend ${h.netIncomeTrend}. ${years}`;
+
+        const mostRecentEps = [...h.points].reverse().find((p) => p.eps != null)?.eps ?? null;
+        const trailingPE = computeTrailingPE(livePriceByTicker.get(ticker) ?? null, mostRecentEps);
+
+        const fundamentals = [
+          h.latestDebtToAssetsRatio != null ? `debt/assets ${(h.latestDebtToAssetsRatio * 100).toFixed(0)}%` : null,
+          h.latestCashPosition != null ? `cash position $${(h.latestCashPosition / 1e9).toFixed(2)}B` : null,
+          `free cash flow trend ${h.freeCashFlowTrend}`,
+          trailingPE != null ? `trailing P/E ${trailingPE.toFixed(1)}` : null,
+        ]
+          .filter(Boolean)
+          .join(", ");
+
+        return `- ${ticker}: revenue trend ${h.revenueTrend}, net income trend ${h.netIncomeTrend}, ${fundamentals}. ${years}`;
       })
       .join("\n") || "(none available)";
 

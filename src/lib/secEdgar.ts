@@ -125,6 +125,18 @@ export interface EarningsHistoryPoint {
    * used for trend classification since stock splits create discontinuities that look like a
    * real business change but aren't (see revenueTrend/netIncomeTrend instead). Null if not tagged. */
   eps: number | null;
+  /** Real total assets as of fiscal year end -- null if not tagged. */
+  totalAssets: number | null;
+  /** Real total liabilities as of fiscal year end -- null if not tagged. */
+  totalLiabilities: number | null;
+  /** Real cash and cash equivalents as of fiscal year end -- null if not tagged. */
+  cashAndEquivalents: number | null;
+  /** Real net cash from operating activities for the fiscal year -- null if not tagged. */
+  operatingCashFlow: number | null;
+  /** Real capital expenditures for the fiscal year -- null if not tagged. */
+  capex: number | null;
+  /** Computed: operatingCashFlow - capex. Null if either input is missing. */
+  freeCashFlow: number | null;
   filedAt: string;
 }
 
@@ -134,6 +146,11 @@ export interface EarningsHistory {
   points: EarningsHistoryPoint[];
   revenueTrend: "improving" | "worsening" | "mixed" | "unknown";
   netIncomeTrend: "improving" | "worsening" | "mixed" | "unknown";
+  freeCashFlowTrend: "improving" | "worsening" | "mixed" | "unknown";
+  /** Real total liabilities / total assets from the most recent fiscal year with both figures -- null if unavailable. */
+  latestDebtToAssetsRatio: number | null;
+  /** Real cash and cash equivalents from the most recent fiscal year with the figure -- null if unavailable. */
+  latestCashPosition: number | null;
 }
 
 // Different companies/filing years tag the same concept differently. Checks
@@ -150,6 +167,19 @@ const REVENUE_TAGS = [
 ];
 const NET_INCOME_TAGS = ["NetIncomeLoss", "ProfitLoss"];
 const EPS_TAGS = ["EarningsPerShareDiluted", "EarningsPerShareBasicAndDiluted"];
+const ASSETS_TAGS = ["Assets"];
+const LIABILITIES_TAGS = ["Liabilities"];
+const CASH_TAGS = [
+  "CashAndCashEquivalentsAtCarryingValue",
+  "CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents",
+];
+const OPERATING_CASH_FLOW_TAGS = ["NetCashProvidedByUsedInOperatingActivities"];
+const CAPEX_TAGS = [
+  "PaymentsToAcquirePropertyPlantAndEquipment",
+  "PaymentsToAcquireProductiveAssets",
+  "PaymentsForCapitalImprovements",
+  "PaymentsToAcquireOtherPropertyPlantAndEquipment",
+];
 
 function extractAnnualSeries(
   usGaapFacts: Record<string, { units?: Record<string, Array<Record<string, unknown>>> }>,
@@ -229,26 +259,57 @@ export async function getEarningsHistory(ticker: string, years = 8): Promise<Ear
     const revenueByYear = extractAnnualSeries(usGaap, REVENUE_TAGS);
     const netIncomeByYear = extractAnnualSeries(usGaap, NET_INCOME_TAGS);
     const epsByYear = extractAnnualSeries(usGaap, EPS_TAGS);
+    const assetsByYear = extractAnnualSeries(usGaap, ASSETS_TAGS);
+    const liabilitiesByYear = extractAnnualSeries(usGaap, LIABILITIES_TAGS);
+    const cashByYear = extractAnnualSeries(usGaap, CASH_TAGS);
+    const operatingCashFlowByYear = extractAnnualSeries(usGaap, OPERATING_CASH_FLOW_TAGS);
+    const capexByYear = extractAnnualSeries(usGaap, CAPEX_TAGS);
 
     const allYears = [
-      ...new Set([...revenueByYear.keys(), ...netIncomeByYear.keys(), ...epsByYear.keys()]),
+      ...new Set([
+        ...revenueByYear.keys(),
+        ...netIncomeByYear.keys(),
+        ...epsByYear.keys(),
+        ...assetsByYear.keys(),
+        ...operatingCashFlowByYear.keys(),
+      ]),
     ].sort((a, b) => a - b);
     const recentYears = allYears.slice(-years);
     if (recentYears.length === 0) return null;
 
-    const points: EarningsHistoryPoint[] = recentYears.map((fy) => ({
-      fiscalYear: fy,
-      revenue: revenueByYear.get(fy)?.val ?? null,
-      netIncome: netIncomeByYear.get(fy)?.val ?? null,
-      eps: epsByYear.get(fy)?.val ?? null,
-      filedAt: revenueByYear.get(fy)?.filed ?? netIncomeByYear.get(fy)?.filed ?? epsByYear.get(fy)?.filed ?? "",
-    }));
+    const points: EarningsHistoryPoint[] = recentYears.map((fy) => {
+      const operatingCashFlow = operatingCashFlowByYear.get(fy)?.val ?? null;
+      const capex = capexByYear.get(fy)?.val ?? null;
+      return {
+        fiscalYear: fy,
+        revenue: revenueByYear.get(fy)?.val ?? null,
+        netIncome: netIncomeByYear.get(fy)?.val ?? null,
+        eps: epsByYear.get(fy)?.val ?? null,
+        totalAssets: assetsByYear.get(fy)?.val ?? null,
+        totalLiabilities: liabilitiesByYear.get(fy)?.val ?? null,
+        cashAndEquivalents: cashByYear.get(fy)?.val ?? null,
+        operatingCashFlow,
+        // Capex is reported as a positive outflow amount in XBRL; free cash flow subtracts it.
+        capex,
+        freeCashFlow: operatingCashFlow != null && capex != null ? operatingCashFlow - Math.abs(capex) : null,
+        filedAt: revenueByYear.get(fy)?.filed ?? netIncomeByYear.get(fy)?.filed ?? epsByYear.get(fy)?.filed ?? "",
+      };
+    });
+
+    const latestWithRatio = [...points].reverse().find((p) => p.totalAssets != null && p.totalLiabilities != null);
+    const latestWithCash = [...points].reverse().find((p) => p.cashAndEquivalents != null);
 
     return {
       ticker,
       points,
       revenueTrend: computeTrend(points.map((p) => p.revenue)),
       netIncomeTrend: computeTrend(points.map((p) => p.netIncome)),
+      freeCashFlowTrend: computeTrend(points.map((p) => p.freeCashFlow)),
+      latestDebtToAssetsRatio:
+        latestWithRatio && latestWithRatio.totalAssets
+          ? (latestWithRatio.totalLiabilities as number) / latestWithRatio.totalAssets
+          : null,
+      latestCashPosition: latestWithCash?.cashAndEquivalents ?? null,
     };
   } catch {
     return null;
