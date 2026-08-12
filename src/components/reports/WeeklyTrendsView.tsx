@@ -3,6 +3,7 @@
 import type { WeeklyTrends } from "@/lib/reports/schemas";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { TickerButton } from "@/components/dashboard/TickerButton";
 
 const riskTone = { Low: "good", Medium: "warn", High: "crit" } as const;
@@ -23,24 +24,60 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
           </h2>
           <Card>
             <div className="flex h-8 overflow-hidden rounded-lg border border-line">
-              <div
-                className="flex items-center justify-center bg-teal-600 text-xs font-bold text-white"
-                style={{ width: `${report.allocationCheck.actualCoreEtfPct}%` }}
+              <InfoTooltip
+                label={
+                  <>
+                    <p className="font-semibold text-ink-900">Core ETFs</p>
+                    <p className="mt-1 text-ink-500">
+                      Broad-market/dividend ETFs. Target: {report.allocationCheck.targetCoreEtfPct}% · Actual:{" "}
+                      {report.allocationCheck.actualCoreEtfPct.toFixed(0)}%
+                    </p>
+                  </>
+                }
               >
-                {report.allocationCheck.actualCoreEtfPct.toFixed(0)}%
-              </div>
-              <div
-                className="flex items-center justify-center bg-good-600 text-xs font-bold text-white"
-                style={{ width: `${report.allocationCheck.actualGrowthPct}%` }}
+                <div
+                  className="flex h-8 items-center justify-center bg-teal-600 text-xs font-bold text-white"
+                  style={{ width: `${report.allocationCheck.actualCoreEtfPct}%` }}
+                >
+                  {report.allocationCheck.actualCoreEtfPct.toFixed(0)}%
+                </div>
+              </InfoTooltip>
+              <InfoTooltip
+                label={
+                  <>
+                    <p className="font-semibold text-ink-900">Individual Growth</p>
+                    <p className="mt-1 text-ink-500">
+                      Established individual growth companies. Target: {report.allocationCheck.targetGrowthPct}% ·
+                      Actual: {report.allocationCheck.actualGrowthPct.toFixed(0)}%
+                    </p>
+                  </>
+                }
               >
-                {report.allocationCheck.actualGrowthPct.toFixed(0)}%
-              </div>
-              <div
-                className="flex items-center justify-center bg-warn-600 text-xs font-bold text-white"
-                style={{ width: `${report.allocationCheck.actualSpeculativePct}%` }}
+                <div
+                  className="flex h-8 items-center justify-center bg-good-600 text-xs font-bold text-white"
+                  style={{ width: `${report.allocationCheck.actualGrowthPct}%` }}
+                >
+                  {report.allocationCheck.actualGrowthPct.toFixed(0)}%
+                </div>
+              </InfoTooltip>
+              <InfoTooltip
+                label={
+                  <>
+                    <p className="font-semibold text-ink-900">Speculative</p>
+                    <p className="mt-1 text-ink-500">
+                      Smaller/higher-risk individual companies. Target: {report.allocationCheck.targetSpeculativePct}%
+                      · Actual: {report.allocationCheck.actualSpeculativePct.toFixed(0)}%
+                    </p>
+                  </>
+                }
               >
-                {report.allocationCheck.actualSpeculativePct.toFixed(0)}%
-              </div>
+                <div
+                  className="flex h-8 items-center justify-center bg-warn-600 text-xs font-bold text-white"
+                  style={{ width: `${report.allocationCheck.actualSpeculativePct}%` }}
+                >
+                  {report.allocationCheck.actualSpeculativePct.toFixed(0)}%
+                </div>
+              </InfoTooltip>
             </div>
             <p className="mt-3 text-sm text-ink-700">{report.allocationCheck.summary}</p>
           </Card>
@@ -81,9 +118,29 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
                   className="font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900"
                 />
                 <div className="flex items-center gap-2">
-                  <Pill tone="neutral">{bucketLabel[idea.bucket]}</Pill>
-                  <Pill tone={ratingTone[idea.rating]}>{idea.rating}</Pill>
-                  <Pill tone={riskTone[idea.riskRating]}>{idea.riskRating} risk</Pill>
+                  <InfoTooltip label={`One of your three allocation buckets: ${bucketLabel[idea.bucket]}.`}>
+                    <Pill tone="neutral">{bucketLabel[idea.bucket]}</Pill>
+                  </InfoTooltip>
+                  <InfoTooltip
+                    label={
+                      <>
+                        <p className="font-semibold text-ink-900">{idea.rating} rating</p>
+                        <p className="mt-1 text-ink-500">{idea.ratingReason}</p>
+                      </>
+                    }
+                  >
+                    <Pill tone={ratingTone[idea.rating]}>{idea.rating}</Pill>
+                  </InfoTooltip>
+                  <InfoTooltip
+                    label={
+                      <>
+                        <p className="font-semibold text-ink-900">{idea.riskRating} risk</p>
+                        <p className="mt-1 text-ink-500">{idea.riskReason}</p>
+                      </>
+                    }
+                  >
+                    <Pill tone={riskTone[idea.riskRating]}>{idea.riskRating} risk</Pill>
+                  </InfoTooltip>
                 </div>
               </div>
               <p className="mt-2 text-sm text-ink-700">{idea.whatItDoes}</p>
@@ -111,12 +168,30 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
                     className="font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900"
                   />
                   <div className="flex items-center gap-2">
-                    <Pill tone={ratingTone[w.rating]}>{w.rating}</Pill>
-                    <Pill tone={riskTone[w.riskRating]}>{w.riskRating} risk</Pill>
+                    <InfoTooltip
+                      label={
+                        <>
+                          <p className="font-semibold text-ink-900">{w.rating} rating</p>
+                          <p className="mt-1 text-ink-500">{w.ratingReason}</p>
+                        </>
+                      }
+                    >
+                      <Pill tone={ratingTone[w.rating]}>{w.rating}</Pill>
+                    </InfoTooltip>
+                    <InfoTooltip
+                      label={
+                        <>
+                          <p className="font-semibold text-ink-900">{w.riskRating} risk</p>
+                          <p className="mt-1 text-ink-500">{w.riskReason}</p>
+                        </>
+                      }
+                    >
+                      <Pill tone={riskTone[w.riskRating]}>{w.riskRating} risk</Pill>
+                    </InfoTooltip>
                   </div>
                 </div>
                 {w.approxPrice != null && (
-                  <p className="mt-2 text-sm text-ink-700">~${w.approxPrice.toLocaleString()}</p>
+                  <p className="mt-2 text-sm text-ink-700">~${w.approxPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 )}
                 <p className="mt-1 text-sm text-ink-700">{w.summary}</p>
                 <p className="mt-1 text-sm text-ink-700">{w.ratingReason}</p>

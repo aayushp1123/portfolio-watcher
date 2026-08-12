@@ -136,7 +136,7 @@ export function PortfolioDashboardModal({ open, onClose }: { open: boolean; onCl
               <div>
                 <p className="text-xs font-semibold tracking-wide text-ink-500 uppercase">Total Portfolio Value</p>
                 <p className="font-[family-name:var(--font-heading)] text-3xl font-bold text-ink-900">
-                  ${snapshot.totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  ${snapshot.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </p>
                 <p className="mt-1 text-xs text-ink-500">As of {new Date(snapshot.asOf).toLocaleString()}</p>
               </div>

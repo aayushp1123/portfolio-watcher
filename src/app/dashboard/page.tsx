@@ -87,7 +87,7 @@ export default async function DashboardPage() {
                   <summary className="cursor-pointer text-sm font-semibold text-ink-900">
                     {new Date(h.generatedAt).toLocaleString()} —{" "}
                     {parsed.hasBrokerageConnection
-                      ? `$${parsed.totalValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}${
+                      ? `$${parsed.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${
                           parsed.overallGainLossPct != null ? ` · ${parsed.overallGainLossPct.toFixed(1)}%` : ""
                         }`
                       : "Watchlist only"}

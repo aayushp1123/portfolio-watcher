@@ -318,7 +318,7 @@ export function PremiumChart({
                         <p key={si} className="text-xs whitespace-nowrap text-paper-0/90 dark:text-ink-900/80">
                           {showLegend ? `${s.label}: ` : ""}
                           {valuePrefix}
-                          {sp.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                          {sp.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </p>
                       )
                   )}

@@ -2,8 +2,60 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getQuote, getMomentum, getHistoricalSeries } from "@/lib/quotes";
+import { getQuote, getMomentum, getHistoricalSeries, getQuotes } from "@/lib/quotes";
+import { getCongressTrades } from "@/lib/congressTrading";
+import { getSector } from "@/lib/sectors";
+import { getParsedHoldings } from "@/lib/holdings";
+import { computeFitScore, type FitScoreResult } from "@/lib/fitScore";
 import type { DailyDigest, WeeklyTrends } from "@/lib/reports/schemas";
+
+type BucketFit = "underweight" | "overweight" | "neutral" | "unknown";
+
+/** Coarse, deterministic 2-bucket classification (ETF vs. individual stock)
+ * -- a reliable 3-way core/growth/speculative split would need fundamentals
+ * data this app doesn't have a free source for, so this stays honest about
+ * what it can actually tell from the sector map alone. */
+function classifyBucket(ticker: string): "CORE_ETF" | "INDIVIDUAL" {
+  return getSector(ticker) === "Diversified (ETF)" ? "CORE_ETF" : "INDIVIDUAL";
+}
+
+async function computeBucketFit(userId: string, ticker: string): Promise<BucketFit> {
+  const [goal, { rawHoldings }] = await Promise.all([
+    prisma.goal.findUnique({ where: { userId } }),
+    getParsedHoldings(userId),
+  ]);
+  if (!goal || rawHoldings.length === 0) return "unknown";
+
+  const holdingTickers = [...new Set(rawHoldings.map((h) => h.ticker))];
+  const quotes = await getQuotes(holdingTickers);
+
+  let coreValue = 0;
+  let individualValue = 0;
+  for (const h of rawHoldings) {
+    const price = quotes.get(h.ticker)?.price;
+    const value = price != null ? price * h.shares : h.marketValue;
+    if (classifyBucket(h.ticker) === "CORE_ETF") coreValue += value;
+    else individualValue += value;
+  }
+  const total = coreValue + individualValue;
+  if (total <= 0) return "unknown";
+
+  const actualCorePct = (coreValue / total) * 100;
+  const actualIndividualPct = 100 - actualCorePct;
+  const targetCorePct = goal.targetCoreEtfPct;
+  const targetIndividualPct = goal.targetGrowthPct + goal.targetSpeculativePct;
+
+  const tickerBucket = classifyBucket(ticker);
+  const BAND = 5;
+  if (tickerBucket === "CORE_ETF") {
+    if (actualCorePct < targetCorePct - BAND) return "underweight";
+    if (actualCorePct > targetCorePct + BAND) return "overweight";
+  } else {
+    if (actualIndividualPct < targetIndividualPct - BAND) return "underweight";
+    if (actualIndividualPct > targetIndividualPct + BAND) return "overweight";
+  }
+  return "neutral";
+}
 
 interface Commentary {
   source: "holding" | "watchlist" | "newIdea" | null;
@@ -120,23 +172,27 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
   const { ticker: rawTicker } = await params;
   const ticker = rawTicker.toUpperCase();
 
-  const [quote, momentum, series, dailyDigests, weeklyTrends] = await Promise.all([
-    getQuote(ticker),
-    getMomentum(ticker),
-    getHistoricalSeries(ticker, "1y"),
-    prisma.report.findMany({
-      where: { userId, type: "DAILY_DIGEST" },
-      orderBy: { generatedAt: "desc" },
-      take: 3,
-      select: { content: true, generatedAt: true },
-    }),
-    prisma.report.findMany({
-      where: { userId, type: "WEEKLY_TRENDS" },
-      orderBy: { generatedAt: "desc" },
-      take: 3,
-      select: { content: true, generatedAt: true },
-    }),
-  ]);
+  const [quote, momentum, series, dailyDigests, weeklyTrends, spyMomentum, congressTrades, bucketFit] =
+    await Promise.all([
+      getQuote(ticker),
+      getMomentum(ticker),
+      getHistoricalSeries(ticker, "1y"),
+      prisma.report.findMany({
+        where: { userId, type: "DAILY_DIGEST" },
+        orderBy: { generatedAt: "desc" },
+        take: 3,
+        select: { content: true, generatedAt: true },
+      }),
+      prisma.report.findMany({
+        where: { userId, type: "WEEKLY_TRENDS" },
+        orderBy: { generatedAt: "desc" },
+        take: 3,
+        select: { content: true, generatedAt: true },
+      }),
+      getMomentum("SPY"),
+      getCongressTrades([ticker]),
+      computeBucketFit(userId, ticker),
+    ]);
 
   const { commentary, position } = findCommentary(ticker, dailyDigests, weeklyTrends);
 
@@ -144,6 +200,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
   const previousClose = series && series.length >= 2 ? series[series.length - 2].close : null;
   const changePct =
     quote && previousClose ? ((quote.price - previousClose) / previousClose) * 100 : null;
+
+  const fitScore: FitScoreResult = computeFitScore({
+    tickerMomentum: momentum,
+    marketMomentum1Month: spyMomentum?.pct1Month ?? null,
+    congressTrades: congressTrades.map((t) => ({ type: t.type })),
+    bucketFit,
+  });
 
   return NextResponse.json({
     ticker,
@@ -153,9 +216,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
     fiftyTwoWeekHigh: quote?.fiftyTwoWeekHigh ?? null,
     fiftyTwoWeekLow: quote?.fiftyTwoWeekLow ?? null,
     momentum,
+    marketMomentum1Month: spyMomentum?.pct1Month ?? null,
     chartSeries,
     commentary,
     position,
+    fitScore,
     asOf: new Date().toISOString(),
   });
 }
