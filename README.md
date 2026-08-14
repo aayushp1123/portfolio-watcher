@@ -18,6 +18,8 @@ Implemented in stages, each shipped and functional before the next began:
 8. **Prompt hardening.** Explicit source-of-truth constraints requiring every stated fact to trace to data provided in-context, plus a required bull-case/bear-case evaluation before any rating is issued.
 9. **Front-end build-out.** Interactive dashboard: a click-to-expand portfolio view with real S&P 500 benchmarking, a per-ticker detail view with Line/Bar/Candlestick/Compare charts, inline metric explanations, and a full dark-theme visual pass.
 10. **Account management.** Delete-account and forgot-password flows.
+11. **Technical indicators.** RSI, MACD, Bollinger Bands, moving-average (50/200-day golden/death cross) crossovers, and rolling support/resistance, computed from the same live price history already in use — folded into every report and the per-stock detail view, and added as a new deterministic Breaking News trigger.
+12. **Multi-engine and batch efficiency.** An optional Groq engine piloted as a Breaking News fallback (validated against the same schema, falls back to Gemini on any failure), plus batch-level efficiency work — shared market context fetched once per run instead of once per user, fair-rotation user ordering, and a quota-exhaustion circuit breaker — to keep report generation predictable as the user base grows.
 
 ## Features
 
@@ -27,7 +29,8 @@ Implemented in stages, each shipped and functional before the next began:
 - **Goals & exit rules** — target allocation across core ETF / individual growth / speculative buckets, plus per-ticker price-target, trailing-stop, and stop-loss rules
 - **Daily Digest** — live-priced total value, a Buy/Hold/Sell rating and risk read on every holding and watchlist ticker grounded in real fundamentals and momentum, exit-rule status, tax notes, and a forward-looking outlook
 - **Weekly Trends** — actual allocation vs. target, concentration/correlation flags, and new stock/ETF ideas
-- **Breaking News** — deterministic detection of real price moves, fresh headlines, SEC filings, and 52-week extremes on owned holdings
+- **Breaking News** — deterministic detection of real price moves, fresh headlines, SEC filings, 52-week extremes, and golden/death cross events on owned holdings
+- **Technical indicators** — RSI, MACD, Bollinger Bands, moving-average crossovers, and support/resistance levels computed from live price history, factored into every report and shown in the per-stock detail view
 - **Interactive dashboard** — click-to-expand portfolio view with S&P 500 benchmarking, best/worst performers, and allocation breakdowns; a per-stock modal with Line/Bar/Candlestick/Compare charts and a transparent Fit Score
 - **Inline metric explanations** — every rating, risk figure, and computed metric includes what it means and why
 - **Fully scheduled** — Vercel Cron triggers all three report types automatically; no manual generation control in the UI
@@ -43,7 +46,7 @@ Implemented in stages, each shipped and functional before the next began:
 | Auth | NextAuth |
 | Database | Postgres (Neon), Prisma ORM with driver adapters |
 | Brokerage data | Plaid |
-| AI / research | Gemini (Flash), structured JSON output |
+| AI / research | Gemini (Flash), structured JSON output; optional Groq fallback engine (free tier) |
 | Hosting | Vercel, deployed via GitHub integration |
 | Scheduling | Vercel Cron Jobs |
 | Email | Nodemailer over Gmail SMTP |
@@ -62,11 +65,11 @@ Every number and claim in a report traces back to one of these, never to the mod
 | House/Senate Stock Watcher | Congressional stock trade disclosures |
 | RSS + Google News | Personalized, multi-outlet news with real publisher attribution |
 
-Realized volatility, beta, max drawdown, correlation, trailing P/E, and the Fit Score are computed directly from this data rather than estimated by the model.
+Realized volatility, beta, max drawdown, correlation, trailing P/E, RSI, MACD, Bollinger Bands, moving-average crossovers, support/resistance levels, and the Fit Score are computed directly from this data rather than estimated by the model.
 
 ## Architecture
 
-Reports are generated server-side against a Zod schema: the model is given real holdings, cost basis, exit rules, goals, watchlist, and every data source above, constrained to return structured JSON matching the schema in [`src/lib/reports/schemas.ts`](src/lib/reports/schemas.ts). Each report type (`dailyDigest.ts`, `weeklyTrends.ts`, `breakingNews.ts`) owns its own prompt and schema, invoked exclusively by a Vercel Cron route (`src/app/api/cron/*`) on the schedule defined in [`vercel.json`](vercel.json), sharing generation code via [`runBatch.ts`](src/lib/reports/runBatch.ts).
+Reports are generated server-side against a Zod schema: the model is given real holdings, cost basis, exit rules, goals, watchlist, and every data source above, constrained to return structured JSON matching the schema in [`src/lib/reports/schemas.ts`](src/lib/reports/schemas.ts). Each report type (`dailyDigest.ts`, `weeklyTrends.ts`, `breakingNews.ts`) owns its own prompt and schema, invoked exclusively by a Vercel Cron route (`src/app/api/cron/*`) on the schedule defined in [`vercel.json`](vercel.json), sharing generation code via [`runBatch.ts`](src/lib/reports/runBatch.ts). Batch runs fetch market-wide context (S&P 500 momentum, VIX, macro data) once per run rather than once per user, process users in fair-rotation order (whoever's gone longest without a report of that kind first), and stop issuing further AI calls after repeated quota-exhaustion errors rather than failing every remaining user individually.
 
 ## Cost
 
@@ -76,6 +79,7 @@ Every component runs on a free tier — signup, goals, exit rules, the sample da
 |---|---|
 | Connecting a brokerage account | Free [Plaid Sandbox](https://dashboard.plaid.com/signup) signup |
 | AI-generated reports + the schedule | Free [Gemini API](https://aistudio.google.com/apikey) key |
+| Groq fallback engine for Breaking News | Optional free [Groq API](https://console.groq.com) key — the app runs fully on Gemini alone without it |
 
 ## Getting started
 
