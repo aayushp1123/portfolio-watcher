@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { LogoMark } from "@/components/graphics/Logo";
-import { SlideNavTabs } from "@/components/ui/SlideNavTabs";
 
 const links = [
   { href: "/dashboard", label: "Daily Digest" },
@@ -13,6 +13,8 @@ const links = [
 ];
 
 export function DashboardNav() {
+  const pathname = usePathname();
+
   return (
     <nav className="sticky top-0 z-10 border-b border-line bg-paper-50/95 backdrop-blur">
       <div className="mx-auto flex max-w-3xl items-center gap-3 px-4 py-3">
@@ -23,8 +25,23 @@ export function DashboardNav() {
           </span>
         </Link>
 
-        <div className="flex flex-1 justify-center overflow-x-auto">
-          <SlideNavTabs items={links} />
+        <div className="flex flex-1 justify-center gap-1.5 overflow-x-auto">
+          {links.map((link) => {
+            const active = pathname === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`whitespace-nowrap rounded-full border px-3 py-1.5 font-[family-name:var(--font-heading)] text-sm font-semibold transition-all duration-150 ease-out hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.97] ${
+                  active
+                    ? "border-teal-600 bg-teal-600 text-white shadow-sm"
+                    : "border-line text-ink-700 hover:border-teal-600 hover:text-teal-600 hover:shadow-sm"
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </div>
 
         <button
