@@ -7,6 +7,7 @@ import { diffRatings } from "@/lib/reports/reportDiff";
 import { Card } from "@/components/ui/Card";
 import { WeeklyTrendsView } from "@/components/reports/WeeklyTrendsView";
 import { ReportPageHeader } from "@/components/dashboard/ReportPageHeader";
+import { LocalTime } from "@/components/ui/LocalTime";
 import { ReportDiffBanner } from "@/components/dashboard/ReportDiffBanner";
 import { WEEKLY_TRENDS_SCHEDULE, getNextRun } from "@/lib/cronSchedule";
 
@@ -63,7 +64,7 @@ export default async function WeeklyTrendsPage() {
               return (
                 <details key={h.id} className="rounded-lg border border-line bg-paper-0 px-4 py-2.5">
                   <summary className="cursor-pointer text-sm font-semibold text-ink-900">
-                    {new Date(h.generatedAt).toLocaleString()} — {parsed.newIdeas.length} idea
+                    <LocalTime date={h.generatedAt} /> — {parsed.newIdeas.length} idea
                     {parsed.newIdeas.length === 1 ? "" : "s"}
                   </summary>
                   <p className="mt-2 text-sm text-ink-700">{parsed.allocationCheck.summary}</p>

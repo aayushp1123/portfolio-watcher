@@ -1,17 +1,14 @@
 import type { NewsArticle } from "@/lib/newsFeed";
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
+import { LocalTime } from "@/components/ui/LocalTime";
 
-function formatDateTime(pubDate: string): string {
-  const date = new Date(pubDate);
-  if (isNaN(date.getTime())) return pubDate;
-  return date.toLocaleString(undefined, {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+const dateTimeOptions: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+};
 
 export function NewsSidebar({ articles }: { articles: NewsArticle[] }) {
   if (articles.length === 0) return null;
@@ -34,7 +31,12 @@ export function NewsSidebar({ articles }: { articles: NewsArticle[] }) {
               <p className="text-sm font-medium leading-snug text-ink-900">{a.title}</p>
               <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
                 <span className="text-xs text-ink-500">
-                  {a.source} · {formatDateTime(a.pubDate)}
+                  {a.source} ·{" "}
+                  {isNaN(new Date(a.pubDate).getTime()) ? (
+                    a.pubDate
+                  ) : (
+                    <LocalTime date={a.pubDate} options={dateTimeOptions} />
+                  )}
                 </span>
                 {a.relatedTicker && <Pill tone="neutral">{a.relatedTicker}</Pill>}
               </div>

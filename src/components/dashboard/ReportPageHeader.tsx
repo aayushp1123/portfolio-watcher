@@ -1,3 +1,5 @@
+import { LocalTime } from "@/components/ui/LocalTime";
+
 export function ReportPageHeader({
   eyebrow,
   title,
@@ -16,9 +18,13 @@ export function ReportPageHeader({
         {title}
       </h1>
       <p className="mt-3 text-xs text-ink-500">
-        {updatedAt ? `Updated ${updatedAt.toLocaleString()}` : ""}
-        {updatedAt ? "  ·  " : ""}
-        {`Next ${nextRun.toLocaleString()}`}
+        {updatedAt && (
+          <>
+            Updated <LocalTime date={updatedAt} />
+            {"  ·  "}
+          </>
+        )}
+        Next <LocalTime date={nextRun} />
       </p>
     </div>
   );

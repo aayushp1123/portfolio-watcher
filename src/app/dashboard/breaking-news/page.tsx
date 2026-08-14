@@ -5,6 +5,7 @@ import { isAiConfigured } from "@/lib/gemini";
 import type { BreakingNews } from "@/lib/reports/schemas";
 import { BreakingNewsStatusCard, BreakingNewsAlerts } from "@/components/reports/BreakingNewsView";
 import { ReportPageHeader } from "@/components/dashboard/ReportPageHeader";
+import { LocalTime } from "@/components/ui/LocalTime";
 import { BREAKING_NEWS_SCHEDULE, getNextRun } from "@/lib/cronSchedule";
 
 export default async function BreakingNewsPage() {
@@ -60,7 +61,7 @@ export default async function BreakingNewsPage() {
               return (
                 <details key={h.id} className="rounded-lg border border-line bg-paper-0 px-4 py-2.5">
                   <summary className="cursor-pointer text-sm font-semibold text-ink-900">
-                    {new Date(h.generatedAt).toLocaleString()} — {parsed.alerts.length} item
+                    <LocalTime date={h.generatedAt} /> — {parsed.alerts.length} item
                     {parsed.alerts.length === 1 ? "" : "s"}
                   </summary>
                   <div className="mt-2 flex flex-col gap-2">

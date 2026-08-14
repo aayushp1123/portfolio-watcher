@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/Card";
+import { LocalTime } from "@/components/ui/LocalTime";
 
 export function PortfolioValueChart({ points }: { points: Array<{ date: string; value: number }> }) {
   if (points.length < 2) return null;
@@ -55,11 +56,11 @@ export function PortfolioValueChart({ points }: { points: Array<{ date: string; 
       </svg>
       <div className="mt-1 flex justify-between text-xs text-ink-500">
         <span>
-          {new Date(first.date).toLocaleDateString()} · $
+          <LocalTime date={first.date} dateOnly /> · $
           {first.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
         </span>
         <span>
-          {new Date(last.date).toLocaleDateString()} · $
+          <LocalTime date={last.date} dateOnly /> · $
           {last.value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
         </span>
       </div>

@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/Card";
 import { Pill } from "@/components/ui/Pill";
+import { LocalTime } from "@/components/ui/LocalTime";
 import type { TrackRecordEntry } from "@/lib/reports/trackRecord";
 
 const ASSESSMENT_TONE: Record<TrackRecordEntry["assessment"], "good" | "crit" | "neutral"> = {
@@ -46,7 +47,9 @@ export function RatingTrackRecord({
             <div className="flex items-center gap-2">
               <span className="text-sm font-semibold text-ink-900">{e.ticker}</span>
               <Pill tone="neutral">{e.rating}</Pill>
-              <span className="text-xs text-ink-500">since {new Date(e.ratedAt).toLocaleDateString()}</span>
+              <span className="text-xs text-ink-500">
+                since <LocalTime date={e.ratedAt} dateOnly />
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className={`text-sm font-semibold ${e.pctChange >= 0 ? "text-good-600" : "text-crit-600"}`}>

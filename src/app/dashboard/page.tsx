@@ -8,6 +8,7 @@ import { diffRatings } from "@/lib/reports/reportDiff";
 import { Card } from "@/components/ui/Card";
 import { DailyDigestView } from "@/components/reports/DailyDigestView";
 import { ReportPageHeader } from "@/components/dashboard/ReportPageHeader";
+import { LocalTime } from "@/components/ui/LocalTime";
 import { ReportDiffBanner } from "@/components/dashboard/ReportDiffBanner";
 import { RatingTrackRecord } from "@/components/dashboard/RatingTrackRecord";
 import { PortfolioValueChartExpandable } from "@/components/dashboard/PortfolioValueChartExpandable";
@@ -85,7 +86,7 @@ export default async function DashboardPage() {
               return (
                 <details key={h.id} className="rounded-lg border border-line bg-paper-0 px-4 py-2.5">
                   <summary className="cursor-pointer text-sm font-semibold text-ink-900">
-                    {new Date(h.generatedAt).toLocaleString()} —{" "}
+                    <LocalTime date={h.generatedAt} /> —{" "}
                     {parsed.hasBrokerageConnection
                       ? `$${parsed.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${
                           parsed.overallGainLossPct != null ? ` · ${parsed.overallGainLossPct.toFixed(1)}%` : ""
