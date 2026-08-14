@@ -1,6 +1,7 @@
 import { getGeminiClient, getGeminiModel } from "@/lib/gemini";
+import { isGroqConfigured, generateGroqJson, getGroqModel } from "@/lib/groq";
 import { prisma } from "@/lib/prisma";
-import { buildUserContext } from "@/lib/reports/buildContext";
+import { buildUserContext, type SharedMarketContext } from "@/lib/reports/buildContext";
 import { breakingNewsSchema, toJsonSchema, type BreakingNews } from "@/lib/reports/schemas";
 
 const MOVE_THRESHOLD_PCT = 4;
@@ -17,6 +18,8 @@ FRESH SEC 8-K FILINGS: A company filing an 8-K with the SEC is, by definition, d
 
 52-WEEK HIGH/LOW PROXIMITY: A real, measured signal that a holding's live price is now within a few percent of its 52-week high or low — a genuine technical milestone, not something you need to verify.
 
+MOVING-AVERAGE CROSSOVER: A real, computed signal that a holding's 50-day moving average has just crossed its 200-day moving average (a "golden cross" when 50-day crosses above, historically read as bullish; a "death cross" when it crosses below, historically read as bearish) — real math on real daily closes, not something you need to verify.
+
 For each confirmed move, write one alert: headline states the ticker and the real % move, whatHappened restates the real numbers (do not invent additional facts like an earnings cause unless a fresh headline or 8-K below actually confirms it), whyItMatters gives grounded context for why a move of this size matters given the holding's risk profile.
 
 For each fresh headline that's genuinely material (real business news — earnings, M&A, guidance, executive change, major regulatory action — not routine market commentary or opinion pieces), write one alert: headline is a plain-English restatement of the real headline, whatHappened summarizes only what the headline actually says, whyItMatters gives grounded context for this specific holding, sourceUrls includes the real link given, publishedAt is the real date given. Skip headlines that are just generic commentary/opinion with no real news content.
@@ -24,6 +27,8 @@ For each fresh headline that's genuinely material (real business news — earnin
 For each fresh 8-K filing, write one alert: headline notes the ticker filed a material event disclosure with the SEC, whatHappened says an 8-K was filed on the given date (you don't know the specific content unless a headline below also covers it — say so honestly rather than guessing what it's about), whyItMatters explains what an 8-K filing means in plain English and why the user should look at it, sourceUrls includes the real filing link given.
 
 For each 52-week high/low proximity event, write one alert: headline states the ticker and that it's trading near its 52-week high or low with the real price and level given, whatHappened restates the real numbers, whyItMatters gives grounded context (near a high can mean strong momentum but also stretched valuation; near a low can mean a genuine buying opportunity or a warning sign, depending on whether anything else in this alert set explains why).
+
+For each moving-average crossover event, write one alert: headline states the ticker and that it just formed a golden cross or death cross, whatHappened restates the real 50-day/200-day figures given, whyItMatters explains in plain English what a golden/death cross conventionally signals and notes it's one technical signal among many, not a standalone buy/sell trigger.
 
 If all four lists are empty, or the only items are non-material commentary, set hasMaterialEvents to false and return an empty alerts array — that is the correct, expected behavior on most runs, not a failure state.
 
@@ -34,7 +39,8 @@ function buildUserMessage(
   confirmedMoves: Array<{ ticker: string; price: number; priorPrice: number; pctChange: number }>,
   freshHeadlines: Array<{ ticker: string; title: string; source: string; pubDate: string; link: string }>,
   freshFilings: Array<{ ticker: string; description: string; filedAt: string; url: string }>,
-  nearFiftyTwoWeek: Array<{ ticker: string; direction: "high" | "low"; price: number; level: number; pct: number }>
+  nearFiftyTwoWeek: Array<{ ticker: string; direction: "high" | "low"; price: number; level: number; pct: number }>,
+  maCrossovers: Array<{ ticker: string; type: "golden_cross" | "death_cross"; sma50: number; sma200: number }>
 ): string {
   const tickers = context.holdings.map((h) => h.ticker).join(", ") || "(no holdings connected yet)";
 
@@ -73,6 +79,16 @@ function buildUserMessage(
           .join("\n")
       : "(none — no holding is newly near its 52-week high/low)";
 
+  const maCrossoverText =
+    maCrossovers.length > 0
+      ? maCrossovers
+          .map(
+            (c) =>
+              `- ${c.ticker}: ${c.type === "golden_cross" ? "golden cross" : "death cross"} (50-day MA $${c.sma50.toFixed(2)}, 200-day MA $${c.sma200.toFixed(2)})`
+          )
+          .join("\n")
+      : "(none — no holding has newly formed a golden or death cross)";
+
   return `Current UTC time: ${new Date().toISOString()}
 
 HOLDINGS TO WATCH: ${tickers}
@@ -89,11 +105,68 @@ ${filingsText}
 52-WEEK HIGH/LOW PROXIMITY (newly within ${FIFTY_TWO_WEEK_PROXIMITY_PCT}%, not previously reported this month):
 ${fiftyTwoWeekText}
 
+MOVING-AVERAGE CROSSOVERS (newly formed, not previously reported this month):
+${maCrossoverText}
+
 Return the structured JSON per the schema and system instructions.`;
 }
 
-export async function generateBreakingNews(userId: string): Promise<{ skipped: true; reason: string } | { skipped: false; report: BreakingNews }> {
-  const context = await buildUserContext(userId);
+/** Pilot: Breaking News tries Groq first (free tier, much higher headroom
+ * than Gemini's shared 20-req/day quota) and falls back to Gemini on any
+ * failure -- network error, non-2xx, or output that fails the same Zod
+ * schema Gemini's output is validated against. Gemini remains the only
+ * required engine; this is purely additive. */
+async function generateBreakingNewsContent(
+  userMessage: string
+): Promise<{ report: BreakingNews; model: string; inputTokens: number | null; outputTokens: number | null }> {
+  if (isGroqConfigured()) {
+    try {
+      const text = await generateGroqJson(
+        `${SYSTEM_PROMPT}\n\nReturn ONLY a single JSON object matching this schema: ${JSON.stringify(toJsonSchema(breakingNewsSchema))}`,
+        userMessage
+      );
+      const parsed = breakingNewsSchema.safeParse(JSON.parse(text));
+      if (parsed.success) {
+        return { report: parsed.data, model: `groq:${getGroqModel()}`, inputTokens: null, outputTokens: null };
+      }
+      console.error("Groq breaking-news output failed schema validation, falling back to Gemini", parsed.error);
+    } catch (err) {
+      console.error("Groq breaking-news generation failed, falling back to Gemini", err);
+    }
+  }
+
+  const client = getGeminiClient();
+  const geminiModel = getGeminiModel();
+
+  const response = await client.models.generateContent({
+    model: geminiModel,
+    contents: [{ role: "user", parts: [{ text: userMessage }] }],
+    config: {
+      systemInstruction: SYSTEM_PROMPT,
+      responseMimeType: "application/json",
+      responseJsonSchema: toJsonSchema(breakingNewsSchema),
+      thinkingConfig: { thinkingBudget: -1 },
+    },
+  });
+
+  const text = response.text;
+  if (!text) {
+    throw new Error("No text content in Gemini response");
+  }
+
+  return {
+    report: breakingNewsSchema.parse(JSON.parse(text)),
+    model: geminiModel,
+    inputTokens: response.usageMetadata?.promptTokenCount ?? null,
+    outputTokens: response.usageMetadata?.candidatesTokenCount ?? null,
+  };
+}
+
+export async function generateBreakingNews(
+  userId: string,
+  shared?: SharedMarketContext
+): Promise<{ skipped: true; reason: string } | { skipped: false; report: BreakingNews }> {
+  const context = await buildUserContext(userId, shared);
 
   if (context.holdings.length === 0) {
     return { skipped: true, reason: "No holdings connected yet — nothing to watch." };
@@ -182,42 +255,41 @@ export async function generateBreakingNews(userId: string): Promise<{ skipped: t
     }
   }
 
-  const client = getGeminiClient();
-  const model = getGeminiModel();
-
-  const response = await client.models.generateContent({
-    model,
-    contents: [
-      {
-        role: "user",
-        parts: [{ text: buildUserMessage(context, confirmedMoves, freshHeadlines, freshFilings, nearFiftyTwoWeek) }],
-      },
-    ],
-    config: {
-      systemInstruction: SYSTEM_PROMPT,
-      responseMimeType: "application/json",
-      responseJsonSchema: toJsonSchema(breakingNewsSchema),
-      thinkingConfig: { thinkingBudget: -1 },
-    },
-  });
-
-  const text = response.text;
-  if (!text) {
-    throw new Error("No text content in Gemini response");
+  // Golden/death cross detection: computeTechnicalIndicators already only
+  // flags "golden_cross"/"death_cross" when the 50/200-day relationship
+  // flipped within the last 5 trading days, so no separate prior-state
+  // comparison is needed here -- just dedup by month like the 52-week block.
+  const maCrossovers: Array<{ ticker: string; type: "golden_cross" | "death_cross"; sma50: number; sma200: number; key: string }> = [];
+  for (const h of context.holdings) {
+    const cross = h.technicalIndicators?.movingAverageCross;
+    if (cross !== "golden_cross" && cross !== "death_cross") continue;
+    const key = `ma-cross:${h.ticker}:${monthBucket}`;
+    if (priorReportedLinkSet.has(key)) continue;
+    const mas = h.technicalIndicators?.movingAverages;
+    if (!mas) continue;
+    maCrossovers.push({ ticker: h.ticker, type: cross, sma50: mas.sma50, sma200: mas.sma200, key });
   }
 
-  const report = breakingNewsSchema.parse(JSON.parse(text));
+  const userMessage = buildUserMessage(context, confirmedMoves, freshHeadlines, freshFilings, nearFiftyTwoWeek, maCrossovers);
+
+  const { report, model, inputTokens, outputTokens } = await generateBreakingNewsContent(userMessage);
+
   // Deterministic, not model-trusted — hasMaterialEvents follows the real detected signals.
   report.hasMaterialEvents =
-    confirmedMoves.length > 0 || freshHeadlines.length > 0 || freshFilings.length > 0 || nearFiftyTwoWeek.length > 0;
+    confirmedMoves.length > 0 ||
+    freshHeadlines.length > 0 ||
+    freshFilings.length > 0 ||
+    nearFiftyTwoWeek.length > 0 ||
+    maCrossovers.length > 0;
 
-  // Track every fresh headline/filing/52-week event we surfaced this run
+  // Track every fresh headline/filing/52-week/MA-cross event we surfaced this run
   // (whether or not the model judged it material) so it's never re-considered next check.
   const newReportedLinks = [
     ...priorReportedLinkSet,
     ...freshHeadlines.map((h) => h.link),
     ...freshFilings.map((f) => f.url),
     ...nearFiftyTwoWeek.map((n) => n.key),
+    ...maCrossovers.map((c) => c.key),
   ].slice(-200);
 
   await prisma.report.create({
@@ -228,8 +300,8 @@ export async function generateBreakingNews(userId: string): Promise<{ skipped: t
       content: JSON.stringify({ ...report, priceSnapshot: newSnapshot, reportedLinks: newReportedLinks }),
       hasMaterialEvents: report.hasMaterialEvents,
       model,
-      inputTokens: response.usageMetadata?.promptTokenCount ?? null,
-      outputTokens: response.usageMetadata?.candidatesTokenCount ?? null,
+      inputTokens,
+      outputTokens,
     },
   });
 

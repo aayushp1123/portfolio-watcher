@@ -1,6 +1,6 @@
 import { getGeminiClient, getGeminiModel } from "@/lib/gemini";
 import { prisma } from "@/lib/prisma";
-import { buildUserContext } from "@/lib/reports/buildContext";
+import { buildUserContext, type SharedMarketContext } from "@/lib/reports/buildContext";
 import { dailyDigestSchema, toJsonSchema, type DailyDigest } from "@/lib/reports/schemas";
 import { computeTrailingPE } from "@/lib/riskMetrics";
 
@@ -29,6 +29,8 @@ CONGRESSIONAL TRADING: You may be given real, recent stock trades disclosed by m
 REAL MULTI-YEAR EARNINGS HISTORY: You may be given each company's actual reported annual revenue, net income, and fundamentals (debt-to-assets ratio, cash position, free cash flow trend, trailing P/E) for the last several fiscal years, straight from their own SEC filings — real, verifiable data, not a guess from memory. Use debt/assets and cash position as your real evidence for "balance sheet health" (previously something you'd have had to guess at); use free cash flow trend as real evidence for whether the business is actually generating cash, not just accounting profit; use trailing P/E as real evidence for whether the stock looks expensive relative to its own earnings. Do not state a specific figure that isn't in the list given. Do not claim the company "beat" or "missed" Wall Street analyst estimates — you are not given analyst consensus data, so you cannot know that; instead speak only to the real reported trend (e.g. "revenue has grown for four straight years" or "net income has declined for two consecutive years"). Weigh both the bull case (what's going right, grounded in the real trend/momentum/filings given) and the bear case (what's going wrong or could) before landing on a rating — a credible Buy still names the real risk, and a credible Sell still names what the bulls would point to.
 
 QUANT RISK DATA: You may be given real computed annualized volatility, beta vs. the S&P 500, max drawdown (the worst real peak-to-trough decline), a return-to-volatility ratio, and daily short-sale-volume % from FINRA for each ticker. Use these as your real evidence for volatility/beta risk-rating factors instead of guessing — e.g. "high beta (1.8) and a max drawdown of 45% mean this holding can move sharply against you" is grounded; a generic "this seems volatile" is not.
+
+TECHNICAL INDICATORS: You may be given real computed RSI(14), MACD, Bollinger Bands, the 50/200-day moving-average relationship, and 20-day support/resistance levels for each ticker — all real math on real daily closes, not a guess. Use these as additional grounded evidence for momentum/timing framing in riskReason, ratingReason, and whatToWatchNext (e.g. an RSI over 70 or price above the upper Bollinger Band supports a "stretched, could pull back" read; a fresh golden cross or RSI recovering from oversold supports a "regaining momentum" read). As stated in the DEPTH REQUIREMENT above, never print the raw numbers — only the plain-English conclusion they lead to, and only when genuinely relevant to the holding's story.
 
 EXAMPLE OF EXPECTED TONE AND DEPTH (for calibration only, not real data — do not reuse these numbers or this ticker):
 "NVDA — $224.50 (live). riskReason: 'Concentrated in a single fast-moving sector (AI infrastructure semiconductors); a leader with a dominant market position, but the stock's valuation already prices in years of growth, so any slowdown in AI capex would hit it disproportionately compared to a diversified fund.' ratingReason: 'Buy — durable competitive moat in AI accelerators and expanding data-center demand outweigh near-term valuation risk for a long-term holder.'"
@@ -79,13 +81,31 @@ function formatRisk(
   return parts.length > 0 ? `QUANT RISK: ${parts.join(", ")}` : "";
 }
 
+function formatTechnical(t: import("@/lib/technicalIndicators").TechnicalIndicators | null): string {
+  if (!t) return "";
+  const parts = [
+    t.rsi14 != null ? `RSI(14) ${t.rsi14.toFixed(0)}${t.rsiSignal && t.rsiSignal !== "neutral" ? ` (${t.rsiSignal})` : ""}` : null,
+    t.macdCrossover ? `MACD ${t.macdCrossover} crossover just occurred` : null,
+    t.pricePosition && t.pricePosition !== "inside" ? `price is ${t.pricePosition.replace("_", " ")} Bollinger Band` : null,
+    t.movingAverageCross === "golden_cross" || t.movingAverageCross === "death_cross"
+      ? `${t.movingAverageCross.replace("_", " ")} just occurred (50-day vs. 200-day MA)`
+      : t.movingAverageCross
+        ? `50-day MA ${t.movingAverageCross === "bullish" ? "above" : "below"} 200-day MA`
+        : null,
+    t.supportResistance
+      ? `20-day range $${t.supportResistance.support20d.toFixed(2)}-$${t.supportResistance.resistance20d.toFixed(2)}`
+      : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? `TECHNICALS: ${parts.join(", ")}` : "";
+}
+
 function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>): string {
   const holdingsList = context.holdings
     .map((h) => {
       const priceInfo = h.livePrice
         ? `LIVE PRICE $${h.livePrice.price.toFixed(2)}${h.livePrice.fiftyTwoWeekHigh != null ? ` (52-wk high $${h.livePrice.fiftyTwoWeekHigh.toFixed(2)}, low $${h.livePrice.fiftyTwoWeekLow?.toFixed(2)})` : ""}`
         : "no live price available";
-      return `- ${h.ticker} (${h.name}): ${h.shares} shares, market value $${h.marketValue.toFixed(2)}, cost basis ${h.costBasis != null ? `$${h.costBasis.toFixed(2)}` : "unknown"}, ${priceInfo}. ${formatMomentum(h.momentum)} ${formatRisk(h.riskMetrics, h.shortVolume)}`;
+      return `- ${h.ticker} (${h.name}): ${h.shares} shares, market value $${h.marketValue.toFixed(2)}, cost basis ${h.costBasis != null ? `$${h.costBasis.toFixed(2)}` : "unknown"}, ${priceInfo}. ${formatMomentum(h.momentum)} ${formatRisk(h.riskMetrics, h.shortVolume)} ${formatTechnical(h.technicalIndicators)}`;
     })
     .join("\n");
 
@@ -100,7 +120,7 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
   const watchlistList = context.watchlist
     .map((w) => {
       const priceInfo = w.livePrice ? `LIVE PRICE $${w.livePrice.price.toFixed(2)}` : "no live price available";
-      return `- ${w.ticker}${w.note ? ` (${w.note})` : ""}, ${priceInfo}. ${formatMomentum(w.momentum)} ${formatRisk(w.riskMetrics, w.shortVolume)}`;
+      return `- ${w.ticker}${w.note ? ` (${w.note})` : ""}, ${priceInfo}. ${formatMomentum(w.momentum)} ${formatRisk(w.riskMetrics, w.shortVolume)} ${formatTechnical(w.technicalIndicators)}`;
     })
     .join("\n") || "(none)";
 
@@ -208,8 +228,11 @@ ${goalText}
 Produce the full daily digest per the schema and system instructions — confident, analytical, professional throughout, using the live prices provided as ground truth.`;
 }
 
-export async function generateDailyDigest(userId: string): Promise<{ skipped: true; reason: string } | { skipped: false; report: DailyDigest }> {
-  const context = await buildUserContext(userId);
+export async function generateDailyDigest(
+  userId: string,
+  shared?: SharedMarketContext
+): Promise<{ skipped: true; reason: string } | { skipped: false; report: DailyDigest }> {
+  const context = await buildUserContext(userId, shared);
 
   if (context.holdings.length === 0 && context.watchlist.length === 0) {
     return { skipped: true, reason: "No holdings or watchlist tickers yet — nothing to research." };

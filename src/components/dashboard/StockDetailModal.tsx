@@ -15,6 +15,18 @@ interface Momentum {
   aboveFiftyDayAvg: boolean | null;
 }
 
+interface TechnicalIndicators {
+  rsi14: number | null;
+  rsiSignal: "overbought" | "oversold" | "neutral" | null;
+  macd: { line: number; signal: number; histogram: number } | null;
+  macdCrossover: "bullish" | "bearish" | null;
+  bollinger: { upper: number; middle: number; lower: number } | null;
+  pricePosition: "above_upper" | "below_lower" | "inside" | null;
+  movingAverages: { sma50: number; sma200: number } | null;
+  movingAverageCross: "golden_cross" | "death_cross" | "bullish" | "bearish" | null;
+  supportResistance: { support20d: number; resistance20d: number } | null;
+}
+
 interface Commentary {
   source: "holding" | "watchlist" | "newIdea" | null;
   rating: "Buy" | "Hold" | "Sell" | null;
@@ -58,6 +70,7 @@ interface StockSnapshot {
   commentary: Commentary;
   position: Position | null;
   fitScore: FitScore;
+  technicalIndicators: TechnicalIndicators | null;
 }
 
 const ratingTone = { Buy: "good", Hold: "warn", Sell: "crit" } as const;
@@ -69,6 +82,19 @@ function fitScoreTone(score: number): "good" | "warn" | "crit" {
   if (score <= 35) return "crit";
   return "warn";
 }
+
+const maCrossLabel = {
+  golden_cross: "Golden cross",
+  death_cross: "Death cross",
+  bullish: "50d > 200d MA",
+  bearish: "50d < 200d MA",
+} as const;
+const maCrossTone = {
+  golden_cross: "good",
+  death_cross: "crit",
+  bullish: "good",
+  bearish: "crit",
+} as const;
 
 /** Header + key stats + bottom line for one ticker's snapshot. Used once in
  * the normal (Line/Bar/Candlestick) view, and twice side-by-side in Compare
@@ -284,6 +310,112 @@ function StockInfoPanel({ snapshot, ticker }: { snapshot: StockSnapshot; ticker:
           </div>
         </InfoTooltip>
       </div>
+
+      {snapshot.technicalIndicators && (
+        <div>
+          <h3 className="mb-2 font-[family-name:var(--font-heading)] text-sm font-bold text-ink-900">
+            Technicals
+          </h3>
+          <div className="flex flex-wrap gap-2">
+            {snapshot.technicalIndicators.rsi14 != null && (
+              <InfoTooltip
+                label={
+                  <>
+                    <p className="font-semibold text-ink-900">RSI (14-day)</p>
+                    <p className="mt-1 text-ink-500">
+                      Relative Strength Index, a real momentum measure computed from daily closes. Above 70 is
+                      conventionally read as &quot;overbought&quot;, below 30 as &quot;oversold&quot; — not a
+                      standalone buy/sell signal on its own.
+                    </p>
+                  </>
+                }
+              >
+                <Pill tone={snapshot.technicalIndicators.rsiSignal && snapshot.technicalIndicators.rsiSignal !== "neutral" ? "warn" : "neutral"}>
+                  RSI {snapshot.technicalIndicators.rsi14.toFixed(0)}
+                  {snapshot.technicalIndicators.rsiSignal && snapshot.technicalIndicators.rsiSignal !== "neutral"
+                    ? ` (${snapshot.technicalIndicators.rsiSignal})`
+                    : ""}
+                </Pill>
+              </InfoTooltip>
+            )}
+            {snapshot.technicalIndicators.macdCrossover && (
+              <InfoTooltip
+                label={
+                  <>
+                    <p className="font-semibold text-ink-900">MACD crossover</p>
+                    <p className="mt-1 text-ink-500">
+                      A real, just-occurred crossover between the MACD line and its signal line — a{" "}
+                      {snapshot.technicalIndicators.macdCrossover} crossover is conventionally read as a shift in
+                      short-term momentum.
+                    </p>
+                  </>
+                }
+              >
+                <Pill tone={snapshot.technicalIndicators.macdCrossover === "bullish" ? "good" : "crit"}>
+                  MACD {snapshot.technicalIndicators.macdCrossover}
+                </Pill>
+              </InfoTooltip>
+            )}
+            {snapshot.technicalIndicators.pricePosition && snapshot.technicalIndicators.pricePosition !== "inside" && (
+              <InfoTooltip
+                label={
+                  <>
+                    <p className="font-semibold text-ink-900">Bollinger Bands</p>
+                    <p className="mt-1 text-ink-500">
+                      Price is currently {snapshot.technicalIndicators.pricePosition.replace("_", " ")} its 20-day,
+                      2-standard-deviation Bollinger Band — a real statistical read on whether the current price is
+                      stretched relative to its recent range.
+                    </p>
+                  </>
+                }
+              >
+                <Pill tone="warn">Price {snapshot.technicalIndicators.pricePosition.replace("_", " ")} band</Pill>
+              </InfoTooltip>
+            )}
+            {snapshot.technicalIndicators.movingAverageCross && (
+              <InfoTooltip
+                label={
+                  <>
+                    <p className="font-semibold text-ink-900">Moving-average trend</p>
+                    <p className="mt-1 text-ink-500">
+                      {snapshot.technicalIndicators.movingAverages && (
+                        <>
+                          50-day MA ${snapshot.technicalIndicators.movingAverages.sma50.toFixed(2)} vs. 200-day MA $
+                          {snapshot.technicalIndicators.movingAverages.sma200.toFixed(2)}.{" "}
+                        </>
+                      )}
+                      A golden cross (50-day crossing above 200-day) is conventionally read as bullish; a death
+                      cross (crossing below) as bearish.
+                    </p>
+                  </>
+                }
+              >
+                <Pill tone={maCrossTone[snapshot.technicalIndicators.movingAverageCross]}>
+                  {maCrossLabel[snapshot.technicalIndicators.movingAverageCross]}
+                </Pill>
+              </InfoTooltip>
+            )}
+            {snapshot.technicalIndicators.supportResistance && (
+              <InfoTooltip
+                label={
+                  <>
+                    <p className="font-semibold text-ink-900">20-day support/resistance</p>
+                    <p className="mt-1 text-ink-500">
+                      The lowest and highest close over the last 20 trading days — short-term levels the price has
+                      recently respected.
+                    </p>
+                  </>
+                }
+              >
+                <Pill tone="neutral">
+                  ${snapshot.technicalIndicators.supportResistance.support20d.toFixed(2)}–$
+                  {snapshot.technicalIndicators.supportResistance.resistance20d.toFixed(2)}
+                </Pill>
+              </InfoTooltip>
+            )}
+          </div>
+        </div>
+      )}
 
       {snapshot.commentary.source && (
         <section>

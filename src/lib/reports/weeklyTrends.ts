@@ -1,6 +1,6 @@
 import { getGeminiClient, getGeminiModel } from "@/lib/gemini";
 import { prisma } from "@/lib/prisma";
-import { buildUserContext } from "@/lib/reports/buildContext";
+import { buildUserContext, type SharedMarketContext } from "@/lib/reports/buildContext";
 import { weeklyTrendsSchema, toJsonSchema, type WeeklyTrends } from "@/lib/reports/schemas";
 import { computeTrailingPE } from "@/lib/riskMetrics";
 
@@ -27,6 +27,8 @@ CONCENTRATION/CORRELATION: If given real computed correlation figures between ho
 REAL MULTI-YEAR EARNINGS HISTORY: You may be given each current holding's actual reported annual revenue, net income, and fundamentals (debt-to-assets ratio, cash position, free cash flow trend, trailing P/E) for the last several fiscal years, straight from their own SEC filings — real, verifiable data, not a guess from memory. Use debt/assets and cash position as real evidence for balance sheet health, free cash flow trend as real evidence for whether the business generates real cash (not just accounting profit), and trailing P/E as real evidence for whether it's expensive relative to its own earnings. Do not state a specific figure not in the list, and never claim a company "beat" or "missed" Wall Street estimates since you have no analyst-consensus data — speak only to the real reported trend. For every current holding and watchlist item with earnings history given, weigh the bull case (what's genuinely going right, grounded in the real trend/momentum/filings) against the bear case (what's going wrong or could) before landing on a rating.
 
 QUANT RISK DATA: You may be given real computed annualized volatility, beta vs. the S&P 500, max drawdown, a return-to-volatility ratio, and daily short-sale-volume % from FINRA for holdings and watchlist tickers. Use these as your real evidence for volatility/beta risk-rating factors instead of guessing.
+
+TECHNICAL INDICATORS: You may be given real computed RSI(14), MACD, Bollinger Bands, the 50/200-day moving-average relationship, and 20-day support/resistance levels for current holdings and watchlist tickers — real math on real daily closes, not a guess. Use these as additional grounded evidence for momentum/timing framing (e.g. an RSI over 70 or price above the upper Bollinger Band supports a "stretched, could pull back" read; a fresh golden cross supports a "regaining momentum" read). Never print the raw numbers in the output — only the plain-English conclusion, and only when genuinely relevant.
 
 EXAMPLE OF EXPECTED TONE AND DEPTH (for calibration only, not real data): "SCHD — allocationCheck should reflect the real % of the account it represents given its live-priced market value. A new idea candidate like a semiconductor ETF: whatItDoes explains it plainly ('a fund holding the largest US chip companies'), whyNow ties to a real structural trend ('AI infrastructure buildout is a multi-year capex cycle, not a one-quarter story'), and ratingReason is specific ('Buy — broad exposure to a durable secular trend without single-company concentration risk')." That is the bar: specific and structural, never a generic "looks promising."
 
@@ -70,11 +72,29 @@ function formatRisk(
   return parts.length > 0 ? `QUANT RISK: ${parts.join(", ")}` : "";
 }
 
+function formatTechnical(t: import("@/lib/technicalIndicators").TechnicalIndicators | null): string {
+  if (!t) return "";
+  const parts = [
+    t.rsi14 != null ? `RSI(14) ${t.rsi14.toFixed(0)}${t.rsiSignal && t.rsiSignal !== "neutral" ? ` (${t.rsiSignal})` : ""}` : null,
+    t.macdCrossover ? `MACD ${t.macdCrossover} crossover just occurred` : null,
+    t.pricePosition && t.pricePosition !== "inside" ? `price is ${t.pricePosition.replace("_", " ")} Bollinger Band` : null,
+    t.movingAverageCross === "golden_cross" || t.movingAverageCross === "death_cross"
+      ? `${t.movingAverageCross.replace("_", " ")} just occurred (50-day vs. 200-day MA)`
+      : t.movingAverageCross
+        ? `50-day MA ${t.movingAverageCross === "bullish" ? "above" : "below"} 200-day MA`
+        : null,
+    t.supportResistance
+      ? `20-day range $${t.supportResistance.support20d.toFixed(2)}-$${t.supportResistance.resistance20d.toFixed(2)}`
+      : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? `TECHNICALS: ${parts.join(", ")}` : "";
+}
+
 function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>): string {
   const holdingsList = context.holdings
     .map((h) => {
       const priceInfo = h.livePrice ? `LIVE PRICE $${h.livePrice.price.toFixed(2)}` : "no live price available";
-      return `- ${h.ticker}: ${h.shares} shares, market value $${h.marketValue.toFixed(2)}, ${priceInfo}. ${formatMomentum(h.momentum)} ${formatRisk(h.riskMetrics, h.shortVolume)}`;
+      return `- ${h.ticker}: ${h.shares} shares, market value $${h.marketValue.toFixed(2)}, ${priceInfo}. ${formatMomentum(h.momentum)} ${formatRisk(h.riskMetrics, h.shortVolume)} ${formatTechnical(h.technicalIndicators)}`;
     })
     .join("\n");
 
@@ -85,7 +105,7 @@ function buildUserMessage(context: Awaited<ReturnType<typeof buildUserContext>>)
   const watchlistList = context.watchlist
     .map((w) => {
       const priceInfo = w.livePrice ? `LIVE PRICE $${w.livePrice.price.toFixed(2)}` : "no live price available";
-      return `- ${w.ticker}${w.note ? ` (${w.note})` : ""}, ${priceInfo}. ${formatMomentum(w.momentum)} ${formatRisk(w.riskMetrics, w.shortVolume)}`;
+      return `- ${w.ticker}${w.note ? ` (${w.note})` : ""}, ${priceInfo}. ${formatMomentum(w.momentum)} ${formatRisk(w.riskMetrics, w.shortVolume)} ${formatTechnical(w.technicalIndicators)}`;
     })
     .join("\n") || "(none)";
 
@@ -199,8 +219,11 @@ ${goalText}
 Produce the full weekly digest per the schema and system instructions — confident, analytical, professional throughout, using the live prices provided as ground truth for current holdings/watchlist.`;
 }
 
-export async function generateWeeklyTrends(userId: string): Promise<{ skipped: true; reason: string } | { skipped: false; report: WeeklyTrends }> {
-  const context = await buildUserContext(userId);
+export async function generateWeeklyTrends(
+  userId: string,
+  shared?: SharedMarketContext
+): Promise<{ skipped: true; reason: string } | { skipped: false; report: WeeklyTrends }> {
+  const context = await buildUserContext(userId, shared);
 
   if (context.holdings.length === 0 && context.watchlist.length === 0 && !context.goal) {
     return { skipped: true, reason: "Connect a brokerage account, add a watchlist ticker, or set your goals first." };

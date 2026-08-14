@@ -7,6 +7,7 @@ import { getCongressTrades } from "@/lib/congressTrading";
 import { getSector } from "@/lib/sectors";
 import { getParsedHoldings } from "@/lib/holdings";
 import { computeFitScore, type FitScoreResult } from "@/lib/fitScore";
+import { computeTechnicalIndicators } from "@/lib/technicalIndicators";
 import type { DailyDigest, WeeklyTrends } from "@/lib/reports/schemas";
 
 type BucketFit = "underweight" | "overweight" | "neutral" | "unknown";
@@ -209,6 +210,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
     bucketFit,
   });
 
+  // Reuses the same 1y OHLC already fetched for the candlestick chart above
+  // -- no extra request needed, just extracting closes for the indicator math.
+  const technicalIndicators = computeTechnicalIndicators(ohlc ? ohlc.map((p) => p.close) : null);
+
   return NextResponse.json({
     ticker,
     livePrice: quote?.price ?? null,
@@ -223,6 +228,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ ticker:
     commentary,
     position,
     fitScore,
+    technicalIndicators,
     asOf: new Date().toISOString(),
   });
 }
