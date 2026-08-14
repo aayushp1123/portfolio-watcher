@@ -18,12 +18,31 @@ model User {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  goal                Goal?
-  exitRules           ExitRule[]
-  plaidItems          PlaidItem[]
-  watchlistItems      WatchlistItem[]
-  reports             Report[]
-  passwordResetTokens PasswordResetToken[]
+  // Two-factor auth (TOTP). Secret is encrypted at rest (see src/lib/crypto.ts),
+  // same AES-256-GCM approach already used for Plaid access tokens.
+  encryptedTotpSecret String?
+  twoFactorEnabled    Boolean   @default(false)
+  failedTotpAttempts  Int       @default(0)
+  totpLockedUntil     DateTime?
+
+  goal                 Goal?
+  exitRules            ExitRule[]
+  plaidItems           PlaidItem[]
+  watchlistItems       WatchlistItem[]
+  reports              Report[]
+  passwordResetTokens  PasswordResetToken[]
+  twoFactorBackupCodes TwoFactorBackupCode[]
+}
+
+model TwoFactorBackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }
 
 model PasswordResetToken {
