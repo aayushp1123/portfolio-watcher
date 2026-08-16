@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -13,7 +14,8 @@ import { WEEKLY_TRENDS_SCHEDULE, getNextRun } from "@/lib/cronSchedule";
 
 export default async function WeeklyTrendsPage() {
   const session = await getServerSession(authOptions);
-  const userId = (session!.user as { id: string }).id;
+  if (!session?.user) redirect("/login");
+  const userId = (session.user as { id: string }).id;
   const aiConfigured = isAiConfigured();
 
   const history = await prisma.report.findMany({

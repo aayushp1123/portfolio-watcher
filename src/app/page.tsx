@@ -24,8 +24,8 @@ function PageBody({
 
 export default async function Home() {
   const session = await getServerSession(authOptions);
-  const loggedIn = !!session;
-  const userId = loggedIn ? (session!.user as { id: string }).id : null;
+  const userId = session?.user ? (session.user as { id: string }).id : null;
+  const loggedIn = !!userId;
 
   // Logged-out homepage stays plain: just the pitch, sign up/log in, and the
   // sample dashboard link — no article feed until you actually have an account.
