@@ -189,3 +189,143 @@ The `README.md` and the GitHub repo description were rewritten twice at the user
 ## 11. Verification Discipline Used Throughout
 
 Worth preserving as a practice going forward: every new data source added this session was verified against **real production data** (via a temporary `tsx` script hitting the live Neon database + real free APIs) before being wired into the AI prompts, not just built and assumed correct. This caught several of the bugs listed in §7 before they ever reached a real report. Recommend continuing this pattern for any future data-source additions.
+
+---
+---
+
+# Session 2 — 2026-08-18 Update
+
+**Last updated:** 2026-08-18
+
+Everything below is additional context from a second working session, laid out in the same shape as the handoff above. Nothing above this line was changed or removed — this picks up from where §1–§11 left off.
+
+---
+
+## 1. Hard Rules Established/Reconfirmed This Session
+
+1. **$0 forever, zero billing risk — reconfirmed, and held even under scaling pressure.** When asked "how do I get more free tokens so this runs more often," the answer was explicitly *not* to chase bigger free-tier pools, but to spend the existing fixed budget more efficiently (see §4, batch efficiency) and to add one more legitimate free-tier AI provider (Groq) rather than a multi-account pooling tool. Two more tools were evaluated and **rejected** this session for real risk, not just cost — see §6.
+2. **No manual "Generate Report" button — still holds**, though the Vercel dashboard's own cron "Run" button was used several times this session as an *admin/testing* action (not a user-facing feature) to manually trigger real report generation against production while verifying new code.
+3. **New sources of free capability must not require an always-on server.** Both rejected tools this session (OmniRoute, MemOS) failed on this ground specifically — they need a self-hosted service running continuously, which doesn't fit a stateless Vercel Cron architecture and reintroduces the maintenance burden the whole stack was designed to avoid.
+4. **New dependencies must be genuinely free with zero external calls, verified before installing.** Applied to `otplib` and `qrcode` (2FA) — both MIT-licensed, pure local computation, no signup, confirmed explicitly before use.
+5. **Always open a new Safari tab automatically after every deploy — reconfirmed and followed.** One recurring limitation this session: the Chrome browser extension was unavailable for live visual QA on some UI changes; this was flagged honestly each time rather than claiming an unverified visual check had passed.
+6. **When something breaks in production, verify the fix against the live site immediately** — don't just trust that a deploy succeeded. This wasn't written down as a rule before this session, but was followed strictly after a real production incident (§7) and is worth treating as a standing rule going forward.
+
+---
+
+## 2. What's Connected / Configured (Updates)
+
+| Service | Purpose | Plan/Tier | Notes |
+|---|---|---|---|
+| **Groq** | Optional second AI engine | Free tier | `GROQ_API_KEY`/`GROQ_MODEL` env vars added, but **no real key has been added anywhere yet** (local or Vercel) — currently a complete no-op, every report still runs on Gemini alone. |
+| **TOTP encryption key** | Encrypts 2FA secrets at rest | N/A (local secret) | `TOTP_SECRET_ENCRYPTION_KEY` generated and added to `.env.local`, but **not yet added to Vercel's production env vars** — 2FA will show "Not configured on this server" in production until this is added. |
+
+Also learned this session: `GEMINI_API_KEY`, `PLAID_TOKEN_ENCRYPTION_KEY`, and `CRON_SECRET` are all marked **Sensitive** in the Vercel dashboard, which means `vercel env pull` cannot retrieve their real values locally (returns a `[SENSITIVE]` placeholder instead, by design). This blocks any local script from doing real AI report generation or decrypting real Plaid tokens — the only way to exercise those paths for real is through the live deployed app itself.
+
+---
+
+## 3. Cron Schedule
+
+Unchanged from §3 above. Manually triggered a few times this session via the Vercel dashboard's cron "Run" button to test the Groq fallback and technical-indicator changes against real production data.
+
+---
+
+## 4. What We Built (by category)
+
+### Technical indicators engine (new, zero new API cost)
+- RSI(14), MACD(12,26,9), Bollinger Bands(20,2), 50/200-day moving-average golden/death cross, and 20-day support/resistance — all pure math (`src/lib/technicalIndicators.ts`), computed from the same free Yahoo daily closes already in use.
+- Wired into all three report prompts (Daily Digest, Weekly Trends, Breaking News), a new deterministic Breaking News trigger (golden/death cross), and a new "Technicals" tile row in the stock detail modal.
+- Verified against real live AAPL/NVDA/SPY data before being wired into any prompt.
+
+### Optional Groq fallback engine (AI provider diversification)
+- `src/lib/groq.ts` — a plain-fetch client (no SDK dependency), piloted only on Breaking News generation.
+- Tries Groq first, validates its output against the exact same Zod schema Gemini's output goes through, falls back to Gemini automatically on any failure or schema-validation miss.
+- The stored report's `model` field records which engine actually ran (e.g. `groq:openai/gpt-oss-120b` vs `gemini-flash-latest`) for later inspection.
+
+### Batch efficiency for scaling to more users
+- `getSharedMarketContext()` (`buildContext.ts`) — SPY momentum, VIX, macro, and SPY closes fetched once per batch run instead of once per user.
+- Fair-rotation queue (`runBatch.ts`) — users processed in order of whoever's gone longest without a report of that kind, so a quota crunch doesn't always starve the same people.
+- Quota circuit breaker — 3 consecutive quota-style failures stops the batch from continuing to hammer a dead API for the rest of that run.
+
+### Site-wide timezone display fix
+- New `src/components/ui/LocalTime.tsx` client component. Root cause: Server Components render on Vercel's server, which defaults to UTC — any `toLocaleString()` call made server-side bakes UTC into the page regardless of the viewer's real location. A report generated at 2:51 PM Eastern was showing as "6:51 PM" for everyone.
+- Fixed across 7 files: `ReportPageHeader`, all three report history lists, `NewsSidebar`, `RatingTrackRecord`, `PortfolioValueChart`.
+
+### Two-factor authentication (TOTP) + remember-me
+- Full authenticator-app 2FA: QR-code enrollment, 10 single-use backup codes, a 5-attempt/15-minute lockout (the app had zero rate-limiting anywhere before this, so this was built from scratch specifically to cover the new attack surface), password-gated disable/regenerate.
+- `src/lib/totp.ts` (otplib + qrcode, both free/local), 4 new API routes under `src/app/api/auth/2fa/`, new `TwoFactorSection.tsx` settings component.
+- `src/lib/crypto.ts` generalized to take an optional key `envVar` parameter (defaults to the existing Plaid key, so no existing call sites changed) — the TOTP secret uses its own dedicated `TOTP_SECRET_ENCRYPTION_KEY`.
+- Remember-me checkbox on login: unchecked sessions expire after 1 day, checked sessions keep the existing 30-day ceiling, enforced via custom claims in the JWT/session callbacks (NextAuth v4 doesn't support per-login dynamic cookie lifetimes cleanly, so this is the closest correct equivalent).
+- Verified with a full scripted end-to-end test against the live dev server and real database (see §11), not just typechecked.
+
+### Sliding-pill nav bar (built, then reverted)
+- Adapted a pasted component prompt (animated framer-motion sliding tab highlight) into the dashboard nav, restyled from the demo's black-and-white to the site's actual teal/dark theme.
+- Deployed, then the user asked to revert it shortly after — reverted cleanly via `git revert`, `framer-motion` dependency removed. Kept here as a record that it was tried, not because anything about it was broken.
+
+### Production account cleanup
+- Removed 2 of 3 user accounts from the live database — both were completely empty (0 reports, 0 Plaid connections, 0 watchlist items). One (`veerhpatel1071@gmail.com`) was flagged and explicitly confirmed before deleting, since it looked like it could be a family member's real signup rather than a test account. Kept `abpslcs@gmail.com` (23 reports, 1 Plaid connection, 2 watchlist items) as the only remaining account.
+
+---
+
+## 5. Skills Used
+
+- **`artifact-design`** — loaded for a resume-interview-prep reference document, which ended up being built as a standalone print-styled PDF (via headless Chrome, embedded Google Fonts as data URIs) rather than a published Artifact, after the user asked for a PDF specifically mid-task.
+
+---
+
+## 6. What We Tried and Didn't Pursue (with reasons)
+
+| Idea | Why it didn't happen |
+|---|---|
+| **OmniRoute** (LLM gateway pooling free-tier accounts across 90+ AI providers to inflate available tokens) | Architectural mismatch — it's a self-hosted gateway (Docker/Electron/local server), not something a stateless Vercel Cron job can call into. Also a real account-ban risk: it self-flags "15 providers ToS-flagged so you decide," and pooling free-tier accounts across many providers risks a ban landing on a real account. |
+| **MemOS** (LLM "long-term memory" layer) | Solves a problem this app deliberately doesn't have — reports are one-shot and grounded fresh in real data every time by design (the whole point of the source-of-truth rule), not meant to rely on the model's own memory of past sessions. The app already has a simpler, purpose-built version of what it actually needs: diffing today's report against the last saved one. Also would've required self-hosting Neo4j *and* Qdrant alongside the existing Postgres — real added infrastructure for a capability not needed. |
+
+---
+
+## 7. Real Bugs Found and Fixed This Session
+
+- **ESM import hoisting broke local env-var loading** — a throwaway verification script called `process.loadEnvFile()` *after* a static `import`, but ES module imports are hoisted and evaluated first, so the Prisma client read `DATABASE_URL` before it was set. Fixed by loading the env file via the Node CLI flag / `dotenv-cli` before the process starts, not inside the script.
+- **Prisma migrations were silently targeting a stale placeholder database** — `prisma.config.ts` only auto-loads `.env` (which still has a leftover `file:./dev.db` placeholder from before Postgres was wired up), not `.env.local` (the real Neon URL). Worked around by exporting `DATABASE_URL` from `.env.local` explicitly before running migration commands.
+- **A stale Turbopack cache crashed the local dev server outright** — a phantom "instrumentation hook" error referencing a `node-cron` module that doesn't exist anywhere in the repo (no `instrumentation.ts`, no `node-cron` dependency). Fixed by deleting `.next` and restarting clean.
+- **Site-wide timezone bug** — see §4. Root cause was Server-Component date formatting always rendering in the server's UTC timezone regardless of the viewer's real location.
+- **Production homepage crash (500) introduced by the remember-me feature.** `session` can now be a valid non-null object with `session.user === undefined` once a non-remembered session's 1-day window has elapsed — but several pages/layouts only checked `!!session` or `session ? session.user.id : null`, which still crashes on `.id` when `session.user` itself is undefined. Only `settings/page.tsx` had been proactively fixed when the feature was first built; six other files (the homepage, three dashboard report pages, three layouts) still had the unsafe pattern and one of them broke the live homepage for every visitor. Caught within minutes via production logs, root-caused to the exact line, and fixed across all 7 affected files. **Lesson for next time:** when a code change introduces a new "this can look valid but a nested field can still be missing" state, grep the *whole* codebase for the unsafe pattern immediately — don't just fix the one file already being edited.
+- **Gemini transient 503 "high demand" overload**, hit twice in a row during manual testing. Not caught by the batch quota circuit breaker (which only matches 429/quota-style errors, not generic transient unavailability) — no code fix applied, just retried a few minutes later. Flagged as a possible future resilience improvement, not yet built.
+
+---
+
+## 8. What's NOT Done / Suggested Next Steps
+
+1. **Add a real `GROQ_API_KEY`** (local and/or Vercel) to actually activate the Groq fallback — it's fully wired but currently a no-op without a key.
+2. **Add `TOTP_SECRET_ENCRYPTION_KEY` to Vercel's production environment variables** — 2FA is fully built but shows "Not configured on this server" in production until this is added.
+3. **Login has no rate-limiting on plain password guessing.** Only the 2FA code step got a lockout this session (5 attempts/15 min), since that was the immediate new attack surface. General brute-force protection on the password step itself is still an open gap.
+4. **Consider a retry-once for transient Gemini 503s**, since it was hit twice during this session's own testing — not urgent, but a real gap in the current error handling (which only treats quota-style errors as retryable-by-fallback).
+5. Everything carried over from the original session's §8 is still true and unchanged: Plaid Sandbox → real accounts not yet activated, quarterly (10-Q) fundamentals not pulled, peer/sector P/E benchmarking not solved, no free earnings calendar found.
+
+---
+
+## 9. Public-Facing Text (README, .env.example)
+
+`README.md` was **updated, not rewritten** — new build-process stages (11, 12), new feature bullets (technical indicators, the golden/death-cross Breaking News trigger), a new tech-stack table row for the optional Groq engine, an extended data-sources closing sentence, a new architecture note about batch efficiency, and a new optional-key table row for Groq — all added in the exact same analytical/neutral voice as the rest of the document, zero new first-person language. `.env.example` got `GROQ_API_KEY`/`GROQ_MODEL` and `TOTP_SECRET_ENCRYPTION_KEY` added, matching the existing optional-key comment convention exactly (`OPTIONAL, free signup... Leave blank to skip`).
+
+---
+
+## 10. Key File Locations (new/changed this session)
+
+- `src/lib/technicalIndicators.ts` — RSI/MACD/Bollinger/moving-average-cross/support-resistance, pure math, no external calls.
+- `src/lib/groq.ts` — the optional Groq engine client.
+- `src/lib/totp.ts` — TOTP secret/QR generation, code verification, backup-code generate/hash/verify.
+- `src/lib/crypto.ts` — now takes an optional `envVar` param so a second secret type can use its own dedicated encryption key.
+- `src/components/ui/LocalTime.tsx` — client-side timezone-correct date formatting, used everywhere a timestamp is shown.
+- `src/components/dashboard/TwoFactorSection.tsx` — the settings-page 2FA UI (enable/disable/backup codes).
+- `src/app/api/auth/2fa/{setup,confirm,disable,backup-codes}/route.ts` — the four 2FA management routes.
+- `src/lib/reports/runBatch.ts` — now uses shared market context, fair-rotation ordering, and the quota circuit breaker.
+- `src/lib/reports/buildContext.ts` — new `getSharedMarketContext()` export.
+
+---
+
+## 11. Verification Discipline Used Throughout (This Session)
+
+Continued the same pattern from the original session — every new data source or computation was checked against real data before being trusted, not just built and assumed correct:
+
+- Technical indicators verified against real live AAPL/NVDA/SPY closes before being wired into any prompt.
+- 2FA verified with a full scripted end-to-end test that replicated NextAuth's actual HTTP sign-in flow (CSRF token, credentials callback, cookie handling) against the live dev server and the real database with throwaway accounts — enrollment, wrong-code rejection, correct-code success, single-use backup codes, and the 5-attempt lockout, all confirmed for real, not just typechecked. Test accounts were deleted afterward, never committed.
+- New habit worth carrying forward: after any deploy believed to be "done," actually re-fetch the live URL / check production logs to confirm before calling it finished — this is exactly what caught the remember-me production crash (§7) within minutes instead of it lingering undiscovered.
