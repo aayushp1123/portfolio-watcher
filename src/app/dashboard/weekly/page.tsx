@@ -5,7 +5,6 @@ import { prisma } from "@/lib/prisma";
 import { isAiConfigured } from "@/lib/gemini";
 import type { WeeklyTrends } from "@/lib/reports/schemas";
 import { diffRatings } from "@/lib/reports/reportDiff";
-import { Card } from "@/components/ui/Card";
 import { WeeklyTrendsView } from "@/components/reports/WeeklyTrendsView";
 import { ReportPageHeader } from "@/components/dashboard/ReportPageHeader";
 import { LocalTime } from "@/components/ui/LocalTime";
@@ -38,16 +37,14 @@ export default async function WeeklyTrendsPage() {
         updatedAt={reportRow ? new Date(reportRow.generatedAt) : null}
         nextRun={getNextRun(WEEKLY_TRENDS_SCHEDULE)}
       />
-      <div className="mx-auto w-full max-w-3xl px-4 py-10">
+      <div className="w-full px-4 pt-2 pb-10 sm:px-8">
       {!report ? (
-        <Card className="mt-6">
-          <p className="text-sm text-ink-700">
-            No research digest yet.{" "}
-            {aiConfigured
-              ? "This generates automatically every Monday morning — check back after the next scheduled run."
-              : "Add your Gemini API key in Settings — this will then populate automatically every Monday morning."}
-          </p>
-        </Card>
+        <p className="mt-6 text-sm text-ink-700">
+          No research digest yet.{" "}
+          {aiConfigured
+            ? "This generates automatically every Monday morning — check back after the next scheduled run."
+            : "Add your Gemini API key in Settings — this will then populate automatically every Monday morning."}
+        </p>
       ) : (
         <div className="mt-6 flex flex-col gap-4">
           <ReportDiffBanner changes={ratingChanges} />
@@ -60,11 +57,11 @@ export default async function WeeklyTrendsPage() {
           <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
             History
           </h2>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col">
             {pastHistory.map((h) => {
               const parsed: WeeklyTrends = JSON.parse(h.content);
               return (
-                <details key={h.id} className="rounded-lg border border-line bg-paper-0 px-4 py-2.5">
+                <details key={h.id} className="py-2.5">
                   <summary className="cursor-pointer text-sm font-semibold text-ink-900">
                     <LocalTime date={h.generatedAt} /> — {parsed.newIdeas.length} idea
                     {parsed.newIdeas.length === 1 ? "" : "s"}

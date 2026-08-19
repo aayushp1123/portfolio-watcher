@@ -111,6 +111,10 @@ export const sampleWeeklyTrends: WeeklyTrends = {
     targetCoreEtfPct: 60,
     targetGrowthPct: 30,
     targetSpeculativePct: 10,
+    holdingBuckets: [
+      { ticker: "VOO", bucket: "CORE_ETF" },
+      { ticker: "BEPC", bucket: "INDIVIDUAL_GROWTH" },
+    ],
     actualCoreEtfPct: 70,
     actualGrowthPct: 17,
     actualSpeculativePct: 13,
@@ -198,6 +202,7 @@ export const sampleBreakingNews: BreakingNews = {
       riskRating: "Medium",
       sourceUrls: [],
       publishedAt: "2026-08-06T13:10:00Z",
+      sourceEventKey: "HEADLINE:sample-only",
     },
   ],
 };

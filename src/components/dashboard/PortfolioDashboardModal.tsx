@@ -91,7 +91,7 @@ export function PortfolioDashboardModal({ open, onClose }: { open: boolean; onCl
       className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4"
       style={{
         animation: "modal-backdrop-in 180ms ease-out",
-        background: "radial-gradient(125% 125% at 50% 10%, #000 40%, #1f6f78 100%)",
+        background: "var(--body-bg)",
       }}
       onClick={onClose}
       role="dialog"

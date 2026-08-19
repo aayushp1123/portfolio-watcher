@@ -37,7 +37,7 @@ export default async function BreakingNewsPage() {
         updatedAt={latest ? new Date(latest.generatedAt) : null}
         nextRun={getNextRun(BREAKING_NEWS_SCHEDULE)}
       />
-      <div className="mx-auto w-full max-w-3xl px-4 py-10">
+      <div className="w-full px-4 pt-2 pb-10 sm:px-8">
       <div>
         <BreakingNewsStatusCard
           hasChecked={!!latest}
@@ -57,11 +57,11 @@ export default async function BreakingNewsPage() {
           <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
             History
           </h2>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col">
             {history.map((h) => {
               const parsed: BreakingNews = JSON.parse(h.content);
               return (
-                <details key={h.id} className="rounded-lg border border-line bg-paper-0 px-4 py-2.5">
+                <details key={h.id} className="py-2.5">
                   <summary className="cursor-pointer text-sm font-semibold text-ink-900">
                     <LocalTime date={h.generatedAt} /> — {parsed.alerts.length} item
                     {parsed.alerts.length === 1 ? "" : "s"}

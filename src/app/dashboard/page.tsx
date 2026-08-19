@@ -6,7 +6,6 @@ import { isAiConfigured } from "@/lib/gemini";
 import type { DailyDigest } from "@/lib/reports/schemas";
 import { getRatingTrackRecord } from "@/lib/reports/trackRecord";
 import { diffRatings } from "@/lib/reports/reportDiff";
-import { Card } from "@/components/ui/Card";
 import { DailyDigestView } from "@/components/reports/DailyDigestView";
 import { ReportPageHeader } from "@/components/dashboard/ReportPageHeader";
 import { LocalTime } from "@/components/ui/LocalTime";
@@ -58,16 +57,14 @@ export default async function DashboardPage() {
         updatedAt={reportRow ? new Date(reportRow.generatedAt) : null}
         nextRun={getNextRun(DAILY_DIGEST_SCHEDULE)}
       />
-      <div className="mx-auto w-full max-w-3xl px-4 py-10">
+      <div className="w-full px-4 pt-2 pb-10 sm:px-8">
       {!report ? (
-        <Card className="mt-6">
-          <p className="text-sm text-ink-700">
-            No digest yet.{" "}
-            {aiConfigured
-              ? "This generates automatically at market open and close on weekdays — check back after the next scheduled run."
-              : "Once your Gemini API key is set and a brokerage account or watchlist ticker is added, this will populate automatically at market open and close on weekdays."}
-          </p>
-        </Card>
+        <p className="mt-6 text-sm text-ink-700">
+          No digest yet.{" "}
+          {aiConfigured
+            ? "This generates automatically at market open and close on weekdays — check back after the next scheduled run."
+            : "Once your Gemini API key is set and a brokerage account or watchlist ticker is added, this will populate automatically at market open and close on weekdays."}
+        </p>
       ) : (
         <div className="mt-6 flex flex-col gap-4">
           <ReportDiffBanner changes={ratingChanges} />
@@ -82,11 +79,11 @@ export default async function DashboardPage() {
           <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
             History
           </h2>
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col">
             {pastHistory.map((h) => {
               const parsed: DailyDigest = JSON.parse(h.content);
               return (
-                <details key={h.id} className="rounded-lg border border-line bg-paper-0 px-4 py-2.5">
+                <details key={h.id} className="py-2.5">
                   <summary className="cursor-pointer text-sm font-semibold text-ink-900">
                     <LocalTime date={h.generatedAt} /> —{" "}
                     {parsed.hasBrokerageConnection

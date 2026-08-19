@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +13,7 @@ import { WatchlistManager } from "@/components/dashboard/WatchlistManager";
 import { PlaidItemsList } from "@/components/dashboard/PlaidItemsList";
 import { TwoFactorSection } from "@/components/dashboard/TwoFactorSection";
 import { DeleteAccountSection } from "@/components/dashboard/DeleteAccountSection";
+import { Card } from "@/components/ui/Card";
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions);
@@ -43,6 +45,18 @@ export default async function SettingsPage() {
         <GoalEditor initialGoal={goal} />
         <WatchlistManager initialItems={watchlistItems} />
         <ExitRulesManager initialRules={exitRules} />
+        <Card>
+          <h2 className="font-[family-name:var(--font-heading)] font-bold text-ink-900">Legal</h2>
+          <p className="mt-2 text-sm text-ink-700">
+            <Link href="/terms" className="font-semibold text-teal-600 hover:underline">
+              Terms of Service
+            </Link>{" "}
+            ·{" "}
+            <Link href="/privacy" className="font-semibold text-teal-600 hover:underline">
+              Privacy Policy
+            </Link>
+          </p>
+        </Card>
       </div>
 
       <DeleteAccountSection />

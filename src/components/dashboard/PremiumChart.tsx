@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import { useId, useMemo, useRef, useState, type MouseEvent, type ReactNode, type TouchEvent } from "react";
 
 export interface ChartPoint {
   date: string;
@@ -197,14 +197,25 @@ export function PremiumChart({
     }));
   }, [decorativeDots, plotW, plotH]);
 
-  function handleMove(e: MouseEvent<SVGSVGElement>) {
+  function handleMoveAtX(clientX: number) {
     if (!svgRef.current || hoverBasisLength === 0) return;
     const rect = svgRef.current.getBoundingClientRect();
-    const relX = ((e.clientX - rect.left) / rect.width) * WIDTH;
+    const relX = ((clientX - rect.left) / rect.width) * WIDTH;
     const idx = Math.round(((relX - PADDING.left) / plotW) * (hoverBasisLength - 1));
     const clamped = Math.max(0, Math.min(hoverBasisLength - 1, idx));
     const dateSource = isCandlestick ? filteredOhlc : primaryPoints;
     setHoverDate(new Date(dateSource[clamped].date));
+  }
+
+  function handleMouseMove(e: MouseEvent<SVGSVGElement>) {
+    handleMoveAtX(e.clientX);
+  }
+
+  // Touch equivalent of hover, so the price tooltip works on phones/tablets
+  // (the SVG has no mouse events there) -- same finger-hold-to-scrub feel.
+  function handleTouchMove(e: TouchEvent<SVGSVGElement>) {
+    const touch = e.touches[0];
+    if (touch) handleMoveAtX(touch.clientX);
   }
 
   if (primaryPoints.length < 2) {
@@ -283,8 +294,11 @@ export function PremiumChart({
           className="w-full cursor-crosshair"
           role="img"
           aria-label="Price chart, interactive"
-          onMouseMove={handleMove}
+          onMouseMove={handleMouseMove}
           onMouseLeave={() => setHoverDate(null)}
+          onTouchStart={handleTouchMove}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={() => setHoverDate(null)}
         >
           <defs>
             {filteredSeries.map(

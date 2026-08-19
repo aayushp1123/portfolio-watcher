@@ -7,14 +7,14 @@ export const metadata: Metadata = { title: "Sample Breaking News — Portfolio W
 
 export default function SampleBreakingNewsPage() {
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-10">
-      <p className="text-xs font-semibold uppercase tracking-widest text-teal-600">
+    <div className="w-full px-4 py-10 sm:px-8">
+      <p className="text-sm font-semibold uppercase tracking-widest text-teal-600">
         Breaking News &amp; Big Moves Watch
       </p>
-      <h1 className="mt-1 font-[family-name:var(--font-heading)] text-3xl font-bold text-ink-900">
+      <h1 className="mt-1 font-[family-name:var(--font-heading)] text-4xl font-bold text-ink-900">
         Live Watch
       </h1>
-      <p className="mt-1 text-xs text-ink-500">Example checked Aug 6, 2026</p>
+      <p className="mt-1 text-sm text-ink-500">Example checked Aug 6, 2026</p>
 
       <SampleBanner />
 

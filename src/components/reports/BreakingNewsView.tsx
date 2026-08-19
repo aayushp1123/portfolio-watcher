@@ -1,7 +1,7 @@
 "use client";
 
 import type { BreakingNews } from "@/lib/reports/schemas";
-import { Card } from "@/components/ui/Card";
+import { ReportRow } from "@/components/ui/ReportSection";
 import { Pill } from "@/components/ui/Pill";
 import { TickerButton } from "@/components/dashboard/TickerButton";
 
@@ -17,7 +17,7 @@ export function BreakingNewsStatusCard({
   notConfiguredMessage: string;
 }) {
   return (
-    <Card className="flex items-center gap-3">
+    <div className="flex items-center gap-3">
       <span
         className={`h-2.5 w-2.5 rounded-full ${
           report?.hasMaterialEvents ? "bg-warn-600" : "bg-good-600"
@@ -35,7 +35,7 @@ export function BreakingNewsStatusCard({
               : "No material news or big moves on the last check."}
         </p>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -46,9 +46,9 @@ export function BreakingNewsAlerts({ report }: { report: BreakingNews }) {
       <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
         Most Recent Items
       </h2>
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col">
         {report.alerts.map((alert, i) => (
-          <Card key={i} className="border-l-4 border-l-teal-600">
+          <ReportRow key={i}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span className="font-[family-name:var(--font-heading)] font-bold text-ink-900">
                 {alert.ticker ? (
@@ -62,7 +62,7 @@ export function BreakingNewsAlerts({ report }: { report: BreakingNews }) {
             </div>
             <p className="mt-2 text-sm text-ink-700">{alert.whatHappened}</p>
             <p className="mt-1 text-sm text-ink-500">{alert.whyItMatters}</p>
-          </Card>
+          </ReportRow>
         ))}
       </div>
     </section>

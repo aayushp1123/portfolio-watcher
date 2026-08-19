@@ -46,7 +46,7 @@ function ModalShell({
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{
         animation: "modal-backdrop-in 180ms ease-out",
-        background: "radial-gradient(125% 125% at 50% 10%, #000 40%, #1f6f78 100%)",
+        background: "var(--body-bg)",
       }}
       onClick={() => canClose && onClose()}
       role="dialog"

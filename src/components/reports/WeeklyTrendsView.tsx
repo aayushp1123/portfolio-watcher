@@ -1,7 +1,7 @@
 "use client";
 
 import type { WeeklyTrends } from "@/lib/reports/schemas";
-import { Card } from "@/components/ui/Card";
+import { ReportRow } from "@/components/ui/ReportSection";
 import { Pill } from "@/components/ui/Pill";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { TickerButton } from "@/components/dashboard/TickerButton";
@@ -22,7 +22,7 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
           <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
             Portfolio Allocation Check
           </h2>
-          <Card>
+          <div>
             <div className="flex h-8 overflow-hidden rounded-lg border border-line">
               <InfoTooltip
                 className="h-8"
@@ -77,27 +77,25 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
               </InfoTooltip>
             </div>
             <p className="mt-3 text-sm text-ink-700">{report.allocationCheck.summary}</p>
-          </Card>
+          </div>
         </section>
       ) : (
-        <Card>
-          <p className="text-sm text-ink-700">
-            No brokerage account connected yet, so there&apos;s no real allocation to check —
-            add tickers to your watchlist below or connect an account in Settings.
-          </p>
-        </Card>
+        <p className="text-sm text-ink-700">
+          No brokerage account connected yet, so there&apos;s no real allocation to check —
+          add tickers to your watchlist below or connect an account in Settings.
+        </p>
       )}
 
       <section>
         <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
           This Week&apos;s Trends
         </h2>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col">
           {report.marketTrends.map((t, i) => (
-            <Card key={i}>
+            <ReportRow key={i}>
               <h3 className="font-[family-name:var(--font-heading)] font-bold text-ink-900">{t.title}</h3>
               <p className="mt-1 text-sm text-ink-700">{t.summary}</p>
-            </Card>
+            </ReportRow>
           ))}
         </div>
       </section>
@@ -106,9 +104,9 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
         <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
           New Stock &amp; ETF Ideas
         </h2>
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col">
           {report.newIdeas.map((idea) => (
-            <Card key={idea.ticker}>
+            <ReportRow key={idea.ticker}>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
                 <TickerButton
                   ticker={idea.ticker}
@@ -146,7 +144,7 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
               <p className="mt-1 text-xs text-ink-500">
                 {idea.horizon === "long-term" ? "Long-term hold" : "Shorter-term / opportunistic"}
               </p>
-            </Card>
+            </ReportRow>
           ))}
         </div>
       </section>
@@ -156,9 +154,9 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
           <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
             Your Watchlist
           </h2>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col">
             {report.watchlistItems.map((w) => (
-              <Card key={w.ticker}>
+              <ReportRow key={w.ticker}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <TickerButton
                     ticker={w.ticker}
@@ -193,7 +191,7 @@ export function WeeklyTrendsView({ report }: { report: WeeklyTrends }) {
                 <p className="mt-1 text-sm text-ink-700">{w.summary}</p>
                 <p className="mt-1 text-sm text-ink-700">{w.ratingReason}</p>
                 <p className="mt-1 text-sm text-ink-500">{w.riskReason}</p>
-              </Card>
+              </ReportRow>
             ))}
           </div>
         </section>

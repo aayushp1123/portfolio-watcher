@@ -25,6 +25,13 @@ model User {
   failedTotpAttempts  Int       @default(0)
   totpLockedUntil     DateTime?
 
+  // Which version of the Terms of Service / Privacy Policy this user has
+  // agreed to, and when. Null means never agreed (blocks access until they
+  // do); a version below CURRENT_TERMS_VERSION (src/lib/legal.ts) means the
+  // docs changed since and they must re-agree.
+  termsAcceptedVersion Int?
+  termsAcceptedAt      DateTime?
+
   goal                 Goal?
   exitRules            ExitRule[]
   plaidItems           PlaidItem[]

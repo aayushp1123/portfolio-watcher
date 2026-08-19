@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { HeroChart } from "@/components/graphics/HeroChart";
 import { IconDigest, IconTrends, IconNews } from "@/components/graphics/FeatureIcons";
 import { SidebarShell } from "@/components/SidebarShell";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { getSidebarArticles } from "@/lib/personalizedNews";
 import type { NewsArticle } from "@/lib/newsFeed";
 
@@ -39,9 +40,12 @@ export default async function Home() {
             Portfolio Watcher
           </span>
           {loggedIn ? (
-            <Link href="/dashboard">
-              <Button>Go to Dashboard</Button>
-            </Link>
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+              <Link href="/dashboard">
+                <Button>Go to Dashboard</Button>
+              </Link>
+            </div>
           ) : (
             <div className="flex items-center gap-4">
               <Link href="/sample" className="text-sm font-semibold text-ink-700 hover:text-teal-600">
@@ -53,6 +57,7 @@ export default async function Home() {
               <Link href="/signup">
                 <Button>Sign up free</Button>
               </Link>
+              <ThemeToggle />
             </div>
           )}
         </div>

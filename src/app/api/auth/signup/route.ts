@@ -2,11 +2,13 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
+import { CURRENT_TERMS_VERSION } from "@/lib/legal";
 
 const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8, "Password must be at least 8 characters"),
   name: z.string().min(1).max(100).optional(),
+  agreedToTerms: z.literal(true, { error: "You must agree to the Terms of Service and Privacy Policy" }),
 });
 
 export async function POST(req: Request) {
@@ -34,6 +36,8 @@ export async function POST(req: Request) {
       email,
       hashedPassword,
       name: parsed.data.name,
+      termsAcceptedVersion: CURRENT_TERMS_VERSION,
+      termsAcceptedAt: new Date(),
     },
     select: { id: true, email: true, name: true },
   });

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { LogoMark } from "@/components/graphics/Logo";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const links = [
   { href: "/dashboard", label: "Daily Digest" },
@@ -43,6 +44,8 @@ export function DashboardNav() {
             );
           })}
         </div>
+
+        <ThemeToggle className="flex-none" />
 
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}

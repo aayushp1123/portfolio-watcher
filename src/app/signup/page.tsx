@@ -13,6 +13,7 @@ export default function SignupPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -25,7 +26,7 @@ export default function SignupPage() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name || undefined, email, password }),
+        body: JSON.stringify({ name: name || undefined, email, password, agreedToTerms }),
       });
       const data = await res.json();
 
@@ -98,8 +99,37 @@ export default function SignupPage() {
               onChange={(e) => setPassword(e.target.value)}
               autoComplete="new-password"
             />
+            <label className="flex items-start gap-2 text-sm text-ink-700">
+              <input
+                type="checkbox"
+                required
+                checked={agreedToTerms}
+                onChange={(e) => setAgreedToTerms(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                I agree to the{" "}
+                <a
+                  href="/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-teal-600 hover:underline"
+                >
+                  Terms of Service
+                </a>{" "}
+                and{" "}
+                <a
+                  href="/privacy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-semibold text-teal-600 hover:underline"
+                >
+                  Privacy Policy
+                </a>
+              </span>
+            </label>
             {error && <p className="text-sm text-crit-600">{error}</p>}
-            <Button type="submit" disabled={loading} className="mt-1 w-full">
+            <Button type="submit" disabled={loading || !agreedToTerms} className="mt-1 w-full">
               {loading ? "Creating account…" : "Create account"}
             </Button>
           </form>

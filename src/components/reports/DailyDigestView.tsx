@@ -1,7 +1,7 @@
 "use client";
 
 import type { DailyDigest } from "@/lib/reports/schemas";
-import { Card } from "@/components/ui/Card";
+import { ReportRow, ReportCallout } from "@/components/ui/ReportSection";
 import { Pill } from "@/components/ui/Pill";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { TickerButton } from "@/components/dashboard/TickerButton";
@@ -14,7 +14,7 @@ const ratingTone = { Buy: "good", Hold: "warn", Sell: "crit" } as const;
 export function DailyDigestView({ report }: { report: DailyDigest }) {
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <div className="flex flex-wrap gap-x-10 gap-y-4">
         <InfoTooltip
           label={
             <>
@@ -25,14 +25,14 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
             </>
           }
         >
-          <Card>
+          <div>
             <p className="text-xs uppercase tracking-wide text-ink-500">Total Value</p>
             <p className="mt-1 font-[family-name:var(--font-heading)] text-2xl font-bold text-ink-900">
               {report.hasBrokerageConnection
                 ? `$${report.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : "N/A"}
             </p>
-          </Card>
+          </div>
         </InfoTooltip>
         <InfoTooltip
           label={
@@ -45,7 +45,7 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
             </>
           }
         >
-          <Card>
+          <div>
             <p className="text-xs uppercase tracking-wide text-ink-500">Overall Gain/Loss</p>
             <p
               className={`mt-1 font-[family-name:var(--font-heading)] text-2xl font-bold ${
@@ -58,7 +58,7 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
             >
               {report.overallGainLossPct != null ? `${report.overallGainLossPct.toFixed(1)}%` : "N/A"}
             </p>
-          </Card>
+          </div>
         </InfoTooltip>
         <InfoTooltip
           label={
@@ -70,29 +70,27 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
             </>
           }
         >
-          <Card>
+          <div>
             <p className="text-xs uppercase tracking-wide text-ink-500">Cash Available</p>
             <p className="mt-1 font-[family-name:var(--font-heading)] text-2xl font-bold text-ink-900">
               {report.cashAvailable != null
                 ? `$${report.cashAvailable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 : "N/A"}
             </p>
-          </Card>
+          </div>
         </InfoTooltip>
       </div>
 
-      <Card>
-        <p className="text-sm text-ink-700">{report.portfolioSummary}</p>
-      </Card>
+      <p className="text-sm text-ink-700">{report.portfolioSummary}</p>
 
       {report.holdings.length > 0 && (
         <section>
           <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
             Your Holdings
           </h2>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col">
             {report.holdings.map((h) => (
-              <Card key={h.ticker}>
+              <ReportRow key={h.ticker}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <TickerButton
                     ticker={h.ticker}
@@ -155,7 +153,7 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
                   <p className="mt-1 text-sm text-ink-700">{h.exitRuleStatus.message}</p>
                 )}
                 {h.taxNote && <p className="mt-1 text-sm text-warn-800">{h.taxNote}</p>}
-              </Card>
+              </ReportRow>
             ))}
           </div>
         </section>
@@ -166,9 +164,9 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
           <h2 className="mb-3 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
             Watchlist
           </h2>
-          <div className="flex flex-col gap-3">
+          <div className="flex flex-col">
             {report.watchlistItems.map((w) => (
-              <Card key={w.ticker}>
+              <ReportRow key={w.ticker}>
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
                   <TickerButton
                     ticker={w.ticker}
@@ -205,7 +203,7 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
                 <p className="mt-1 text-sm text-ink-700">{w.summary}</p>
                 <p className="mt-1 text-sm text-ink-700">{w.ratingReason}</p>
                 <p className="mt-1 text-sm text-ink-500">{w.riskReason}</p>
-              </Card>
+              </ReportRow>
             ))}
           </div>
         </section>
@@ -216,13 +214,11 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
           <h2 className="mb-2 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
             Dividends
           </h2>
-          <Card>
-            <ul className="flex flex-col gap-1.5 text-sm text-ink-700">
-              {report.dividendNotes.map((note, i) => (
-                <li key={i}>{note}</li>
-              ))}
-            </ul>
-          </Card>
+          <ul className="flex flex-col gap-1.5 text-sm text-ink-700">
+            {report.dividendNotes.map((note, i) => (
+              <li key={i}>{note}</li>
+            ))}
+          </ul>
         </section>
       )}
 
@@ -230,17 +226,17 @@ export function DailyDigestView({ report }: { report: DailyDigest }) {
         <h2 className="mb-2 font-[family-name:var(--font-heading)] text-lg font-bold text-ink-900">
           Bottom Line
         </h2>
-        <Card className="bg-teal-100 border-none">
+        <ReportCallout>
           <p className="text-sm text-ink-900">{report.bottomLine}</p>
-        </Card>
+        </ReportCallout>
       </section>
 
-      <Card className="border-teal-600/30 bg-paper-0">
+      <ReportCallout>
         <p className="text-xs font-semibold uppercase tracking-wide text-teal-600">
           What to Watch Next
         </p>
         <p className="mt-2 text-sm text-ink-700">{report.whatToWatchNext}</p>
-      </Card>
+      </ReportCallout>
 
       <p className="text-center text-xs text-ink-500">
         Prices are live from the market at generation time — ratings, risk assessments, and analysis

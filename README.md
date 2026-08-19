@@ -20,6 +20,7 @@ Implemented in stages, each shipped and functional before the next began:
 10. **Account management.** Delete-account and forgot-password flows.
 11. **Technical indicators.** RSI, MACD, Bollinger Bands, moving-average (50/200-day golden/death cross) crossovers, and rolling support/resistance, computed from the same live price history already in use — folded into every report and the per-stock detail view, and added as a new deterministic Breaking News trigger.
 12. **Multi-engine and batch efficiency.** An optional Groq engine piloted as a Breaking News fallback (validated against the same schema, falls back to Gemini on any failure), plus batch-level efficiency work — shared market context fetched once per run instead of once per user, fair-rotation user ordering, and a quota-exhaustion circuit breaker — to keep report generation predictable as the user base grows.
+13. **UI redesign and legal compliance.** Report pages moved from a boxed/card layout to plain full-width text (pills kept only for ratings and status tags, never for structural layout), a light/dark mode toggle, and a mobile touch-input pass on the price chart. A Terms of Service and Privacy Policy were added with mandatory acceptance at signup and a forced re-agreement gate whenever the documents change.
 
 ## Features
 
@@ -35,6 +36,8 @@ Implemented in stages, each shipped and functional before the next began:
 - **Inline metric explanations** — every rating, risk figure, and computed metric includes what it means and why
 - **Fully scheduled** — Vercel Cron triggers all three report types automatically; no manual generation control in the UI
 - **Sample mode** — `/sample` walks through realistic example data with no account needed
+- **Light/dark mode** — toggle in the nav, persisted per-browser
+- **Terms of Service & Privacy Policy** — required agreement at signup, with a forced re-agreement gate for existing users whenever the documents change
 
 ## Tech stack
 
@@ -113,3 +116,4 @@ Real (production) brokerage linking is also available for free — Plaid's Trial
 - Plaid Sandbox provides realistic *fake* holdings data by default — see the production upgrade path above for real accounts.
 - Reports have no live web search (kept out to guarantee the free tier holds forever). Every claim is instead grounded in the structured data sources listed above, fetched fresh at generation time.
 - Personal project, not an audited fintech product — every report is a starting point for further research, not financial advice.
+- The Terms of Service and Privacy Policy are a plain-language template, not reviewed by a lawyer.

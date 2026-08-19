@@ -329,3 +329,111 @@ Continued the same pattern from the original session — every new data source o
 - Technical indicators verified against real live AAPL/NVDA/SPY closes before being wired into any prompt.
 - 2FA verified with a full scripted end-to-end test that replicated NextAuth's actual HTTP sign-in flow (CSRF token, credentials callback, cookie handling) against the live dev server and the real database with throwaway accounts — enrollment, wrong-code rejection, correct-code success, single-use backup codes, and the 5-attempt lockout, all confirmed for real, not just typechecked. Test accounts were deleted afterward, never committed.
 - New habit worth carrying forward: after any deploy believed to be "done," actually re-fetch the live URL / check production logs to confirm before calling it finished — this is exactly what caught the remember-me production crash (§7) within minutes instead of it lingering undiscovered.
+
+---
+
+# Session 3 — 2026-08-19 Update
+
+**Last updated:** 2026-08-19
+
+Everything below is additional context from a third working session, laid out in the same shape as the handoff above. Nothing above this line was changed or removed.
+
+---
+
+## 1. Hard Rules Established/Reconfirmed This Session
+
+No new hard rules. Rule 4 from the original session ("UI/layout must never change during backend work unless explicitly requested") was the relevant one this session — all UI work here was explicitly requested, not incidental.
+
+---
+
+## 2. What's Connected / Configured (Updates)
+
+No new external services. One new required `User` column: `termsAcceptedVersion` (`Int?`) and `termsAcceptedAt` (`DateTime?`), added via a real Prisma migration (`20260819012611_add_terms_acceptance`) applied against the live Neon database.
+
+---
+
+## 3. Cron Schedule
+
+Unchanged.
+
+---
+
+## 4. What We Built (by category)
+
+### Line-by-line documentation + bug audit of the report pipeline
+- Went through `runBatch.ts`, `buildContext.ts`, `schemas.ts`, `dailyDigest.ts`, `weeklyTrends.ts`, and `breakingNews.ts` line by line: a plain-English comment on every real line of code, section banners per function, and an active bug hunt (not just a cosmetic pass).
+- Real bugs found and fixed — see §7.
+- Two design-level "AI shouldn't do the arithmetic" gaps that had been found-but-deferred were then tackled: Weekly Trends allocation-percentage math, and Breaking News source attribution. Both follow the same pattern already established for `hasBrokerageConnection`/`hasMaterialEvents`: let the model make the one genuine judgment call, compute everything else deterministically in code from real data.
+
+### UI redesign — no pills/cards on report bodies, light/dark mode, responsive pass
+- **Light/dark toggle** (`ThemeToggle.tsx`) — the dark-mode CSS tokens already existed in `globals.css` but `<html>` was hardcoded to `data-theme="dark"` forever with no toggle anywhere. Built the toggle (via `useSyncExternalStore`, reading/writing `data-theme` + `localStorage`) and an inline pre-hydration script in the root layout so there's no flash of the wrong theme on load.
+- **Report bodies de-bubbled.** The three report pages (Daily Digest, Weekly Trends, Breaking News) used a shared `Card` component (rounded, bordered, boxed) for every stat tile, holding/watchlist/idea/alert row, and callout. Iterated twice based on direct feedback: first pass replaced boxes with bottom-border divider rows; second pass removed the divider borders entirely per explicit follow-up ("no more tabs/borders unless it's for ratings, fits, charts") — report content now sits directly on the page background as continuous text, separated only by spacing. Rating/risk `Pill` tags, the nav bar's pill tabs, and the stock-detail/portfolio-expand modals were explicitly kept exactly as they were throughout — the user was specific that those should stay.
+- **Same treatment applied to `/sample`, `/sample/weekly`, `/sample/breaking-news`** — a completely separate set of page files from the authenticated dashboard pages, missed on the first pass and caught when the user pointed out the fix "didn't look right" on the local build (those are the public, no-login pages, so this was the version actually being checked).
+- **Report page header** (`ReportPageHeader.tsx`) — dropped its own bordered/filled banner background (same de-bubbling logic), title font bumped `text-3xl → text-4xl` with the eyebrow/meta text bumped proportionally to preserve the same visual hierarchy, and the padding between the header and the report body tightened (the header and the content div were each contributing their own `py-10`, stacking into an ~80px gap once the dividing border was gone).
+- **Mobile touch support fix for the price chart.** `PremiumChart.tsx` is a hand-rolled responsive SVG (viewBox-scaled, not px-fixed) but only had `onMouseMove`/`onMouseLeave` — the hover tooltip literally could not be triggered on a touchscreen. Added `onTouchStart`/`onTouchMove`/`onTouchEnd` using the same rescale math.
+- **Real production bug found and fixed post-redesign: the page background was illegible in light mode.** `body`'s background was a single hardcoded `radial-gradient(#000 → #1f6f78)` with no theme variance at all, while the text color token *did* flip to dark navy for light mode — dark text on a near-black background. Fixed by making the background itself a theme-aware CSS variable (`--body-bg`), with a proper light value added and the dark value left pixel-identical to before. The exact same hardcoded gradient was also duplicated as an inline style in 4 separate modal backdrops (`StockDetailModal`, `PortfolioDashboardModal`, `TwoFactorSection`, `DeleteAccountSection`) — same bug, same fix, all pointed at the new `var(--body-bg)` token.
+
+### Terms of Service + Privacy Policy
+- New `src/lib/legal.ts` — single source of truth for both documents' text plus `CURRENT_TERMS_VERSION`. Operator is the developer personally (no LLC), governing law is Pennsylvania, liability section is written in full caps and capped at the greater of $0 or amounts paid in the last 12 months (the app is free, so currently $0), data-deletion policy points to the existing self-serve Settings → Delete Account flow (verified this actually cascades every table via the schema's `onDelete: Cascade`, not just asserted), plus an indemnification clause.
+- Public standalone pages at `/terms` and `/privacy`.
+- `User.termsAcceptedVersion`/`termsAcceptedAt` added to the schema. Signup now requires a checkbox and stamps the current version on account creation.
+- A mandatory, non-dismissible full-page gate (`TermsGate.tsx`) added to both `dashboard/layout.tsx` and `onboarding/layout.tsx` — any user whose stored version is missing or behind `CURRENT_TERMS_VERSION` sees the current documents and must click "I Agree" before anything else loads. This is deliberately how the project's single production user (`abpslcs@gmail.com`) will pick up the new terms — confirmed via a real DB query that their `termsAcceptedVersion` is `null`, which is the expected/correct state for a brand-new rollout of this feature.
+
+---
+
+## 5. Skills Used
+
+None.
+
+---
+
+## 6. What We Tried and Didn't Pursue (with reasons)
+
+Not applicable this session — no tools/approaches were evaluated and rejected.
+
+---
+
+## 7. Real Bugs Found and Fixed This Session
+
+- **`refreshHoldings()` never updated `PlaidItem.status`** on success or failure, unlike the manual Sync route it was supposed to mirror — a broken connection would get silently retried forever every batch run instead of surfacing as `login_required`/`error` in the UI. Fixed to match the manual route's status-setting logic exactly.
+- **Duplicate ticker fetches in `buildContext.ts`** — `allTickers` concatenated holdings + watchlist tickers with no dedup, and three of the SEC EDGAR helper functions (`getMaterialFilings`/`getInsiderActivity`/`getEarningsHistories`) don't dedupe internally (unlike the other data-fetching functions, which all do). Fixed with a `Set`.
+- **`formatRisk()` was missing two fields** (`maxDrawdownPct`, `returnToVolatilityRatio`) that the SYSTEM_PROMPT explicitly promised the model but the code never actually included.
+- **A literal "undefined" could print** in the Daily Digest price info when a 52-week low was missing but the high wasn't (or vice versa) — the two weren't independently null-checked.
+- **The AI was being trusted to do its own arithmetic** for `totalValue`/`overallGainLossPct`/per-holding `gainLossPct` (Daily Digest) and allocation-bucket percentages (Weekly Trends) — both replaced with deterministic post-generation overwrites computed from real live market values, verified against real production holdings via throwaway scripts before being trusted.
+- **Breaking News alert fields (`ticker`/`sourceUrls`/`publishedAt`) were whatever the model copied through**, not guaranteed to match the real detected event. Fixed with a `sourceEventKey` pattern — the model echoes back a stable key tagged onto each deterministically-detected event, then the real fields are looked up and reattached from that key rather than trusted from the model's copy.
+- **The page background was illegible in light mode** — see §4 for the full root-cause and fix; this was a real production-facing bug in the newly-added light mode, not a design nitpick.
+
+---
+
+## 8. What's NOT Done / Suggested Next Steps
+
+1. This session's UI/legal work was committed and deployed to production at the end of the session — worth a live visual check on a real phone (not just Chrome devtools emulation, which wasn't available this session either — the Chrome browser extension never connected) before considering the mobile pass fully verified.
+2. Everything carried over from Session 2's §8 is still true and unchanged (Groq key not yet added anywhere, `TOTP_SECRET_ENCRYPTION_KEY` not yet in Vercel prod env, no general login rate-limiting, no Gemini 503 retry, Plaid Sandbox → real accounts not yet activated).
+3. The user mentioned wanting further UI changes beyond this session's scope (moving away from a tabbed multi-page layout toward "everything on one page") — explicitly deferred until they've decided exactly what they want; nothing about that was started.
+
+---
+
+## 9. Public-Facing Text (README, .env.example)
+
+`README.md` updated (not rewritten) this session — see the actual diff for specifics; the new UI/legal work was folded into the existing "Build process" and "Features" sections in the same neutral, analytical voice as the rest of the document.
+
+---
+
+## 10. Key File Locations (new/changed this session)
+
+- `src/lib/legal.ts` — Terms/Privacy content and `CURRENT_TERMS_VERSION`, single source of truth.
+- `src/components/TermsGate.tsx` — the mandatory re-agreement full-page block.
+- `src/components/ThemeToggle.tsx` — light/dark toggle, `useSyncExternalStore`-based.
+- `src/components/ui/ReportSection.tsx` — the plain-spacing replacement for `Card` inside report bodies.
+- `src/app/terms/page.tsx`, `src/app/privacy/page.tsx` — public legal pages.
+- `src/app/api/auth/accept-terms/route.ts` — records a fresh terms agreement.
+- `--body-bg` in `src/app/globals.css` — the theme-aware page-background token; also referenced by the 4 modal backdrops listed in §4/§7.
+
+---
+
+## 11. Verification Discipline Used Throughout (This Session)
+
+- Every deterministic-math fix (Daily Digest gain/loss, Weekly Trends allocation buckets, Breaking News event-key reattachment) was checked with a throwaway `.mts` script against real production data (or a real simulated model response for the event-key logic) before being considered done, then deleted — never committed.
+- The terms-acceptance migration was verified against the real Neon database post-migration: confirmed the one real production user shows `termsAcceptedVersion: null`, the correct state for a first-time rollout.
+- `npx tsc --noEmit` and `npx eslint` run clean on every touched file before moving on, every time.
+- The local production build (`npm run build`, served by a `launchd`-managed `next start` on port 3001 — discovered mid-session; not a `next dev` server as previously assumed) was rebuilt and the service restarted after every round of changes, then re-checked via `curl` against the actual served HTML/CSS (not just source inspection) to confirm each fix actually landed — this is what caught the `/sample` pages being missed on the first de-bubbling pass, and confirmed the `--body-bg` fix compiled into both theme variants correctly.
