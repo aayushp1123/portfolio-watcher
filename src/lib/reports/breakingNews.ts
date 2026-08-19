@@ -1,7 +1,7 @@
 // ============================================================================
 // IMPORTS
 // ============================================================================
-import { getGeminiClient, getGeminiModel } from "@/lib/gemini"; // this brings in the Gemini client factory and the configured model name
+import { getGeminiClient, getGeminiModel, generateGeminiContent } from "@/lib/gemini"; // this brings in the Gemini client factory, the configured model name, and the retry-wrapped generation call
 import { isGroqConfigured, generateGroqJson, getGroqModel } from "@/lib/groq"; // this brings in the optional Groq engine's config check, JSON call, and model name
 import { prisma } from "@/lib/prisma"; // this brings in the shared database client used to read the prior report and save the finished one
 import { buildUserContext, type SharedMarketContext } from "@/lib/reports/buildContext"; // this brings in the function that assembles all the real data for one user
@@ -188,7 +188,7 @@ async function generateBreakingNewsContent(
   const client = getGeminiClient(); // this creates the Gemini API client, used either as the only engine or as the fallback
   const geminiModel = getGeminiModel(); // this reads the configured Gemini model name
 
-  const response = await client.models.generateContent({ // this makes the actual call to Gemini
+  const response = await generateGeminiContent(client, { // this makes the actual call to Gemini, retrying once if it's a transient overload error
     model: geminiModel, // this is which Gemini model to use
     contents: [{ role: "user", parts: [{ text: userMessage }] }], // this is the same real-event prompt text, sent as the user turn
     config: {

@@ -68,7 +68,15 @@ function isPlaidError(err: unknown): err is PlaidApiErrorShape { // this defines
  * "Sync Now" click required. Failures are logged and skipped per-item; a
  * stale cached snapshot is better than blocking the whole report. A broken
  * connection is marked login_required/error (same as the manual Sync route)
- * so it stops being retried every run and the UI reflects it. */
+ * so it stops being retried every run and the UI reflects it.
+ *
+ * Also guards against a real Plaid glitch seen in production: a sync can
+ * succeed (no error thrown) but return a suspiciously incomplete holdings
+ * list (e.g. 2 positions instead of the usual 9), which would otherwise get
+ * cached as-is and silently corrupt the portfolio-value history with a fake
+ * crash-and-recover. A majority of positions vanishing in a single sync
+ * while the connection itself reports healthy is treated as a bad sync, not
+ * a real liquidation — the previous cached holdings are kept instead. */
 async function refreshHoldings(userId: string) { // this defines the function that refreshes one user's live Plaid holdings
   if (!isPlaidConfigured()) return; // this stops immediately if no Plaid API keys are set up at all, since there's nothing to refresh
 
@@ -81,6 +89,34 @@ async function refreshHoldings(userId: string) { // this defines the function th
       try {
         const accessToken = decrypt(item.encryptedAccessToken); // this decrypts the saved access token so it can be used to call Plaid
         const holdingsRes = await client.investmentsHoldingsGet({ access_token: accessToken }); // this calls Plaid to fetch this connection's current live holdings
+        const newCount = holdingsRes.data.holdings?.length ?? 0; // this counts how many positions the fresh Plaid response actually contains
+
+        let previousCount: number | null = null; // this will hold how many positions the last cached snapshot had, if any
+        if (item.lastHoldingsJson) { // this checks whether there's a previous cached snapshot to compare against
+          try {
+            const previous = JSON.parse(item.lastHoldingsJson) as { holdings?: unknown[] }; // this parses the previous snapshot the same way the fresh one is shaped
+            previousCount = previous.holdings?.length ?? null; // this reads how many positions were in that previous snapshot
+          } catch {
+            previousCount = null; // this treats an unparseable previous snapshot as "nothing to compare against" rather than crashing
+          }
+        }
+
+        // A real, legitimate full liquidation is rare and wouldn't also
+        // recover back to the old position count on the very next sync the
+        // way the production incident that motivated this check did.
+        const looksIncomplete = previousCount != null && previousCount >= 3 && newCount < previousCount / 2; // this flags a sync that lost more than half of a previously-substantial holdings list
+
+        if (looksIncomplete) { // this checks whether this sync's result looks like a bad/incomplete Plaid response rather than a real change
+          console.error(
+            `[cron] holdings refresh for plaidItem ${item.id} looked incomplete (${newCount} positions vs previous ${previousCount}) — keeping previous cached holdings`
+          ); // this logs the suspicious sync so it's visible in Vercel's logs
+          await prisma.plaidItem.update({ // this still marks the connection as healthy and synced, just without overwriting the holdings themselves
+            where: { id: item.id }, // this targets the specific connection that was just refreshed
+            data: { status: "active", lastSyncedAt: new Date() }, // this updates the sync timestamp but deliberately leaves lastHoldingsJson untouched
+          });
+          return; // this skips the normal save below for this connection
+        }
+
         await prisma.plaidItem.update({ // this saves the fresh holdings back to the database
           where: { id: item.id }, // this targets the specific connection that was just refreshed
           data: { status: "active", lastHoldingsJson: JSON.stringify(holdingsRes.data), lastSyncedAt: new Date() }, // this stores the new holdings, marks the connection active again, and stamps the sync time

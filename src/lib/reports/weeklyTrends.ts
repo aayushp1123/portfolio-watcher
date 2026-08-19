@@ -1,7 +1,7 @@
 // ============================================================================
 // IMPORTS
 // ============================================================================
-import { getGeminiClient, getGeminiModel } from "@/lib/gemini"; // this brings in the Gemini client factory and the configured model name
+import { getGeminiClient, getGeminiModel, generateGeminiContent } from "@/lib/gemini"; // this brings in the Gemini client factory, the configured model name, and the retry-wrapped generation call
 import { prisma } from "@/lib/prisma"; // this brings in the shared database client used to save the finished report
 import { buildUserContext, type SharedMarketContext } from "@/lib/reports/buildContext"; // this brings in the function that assembles all the real data for one user
 import { weeklyTrendsSchema, toJsonSchema, type WeeklyTrends } from "@/lib/reports/schemas"; // this brings in the Zod schema, its JSON-Schema converter, and the inferred TypeScript type
@@ -299,7 +299,7 @@ export async function generateWeeklyTrends(
   const client = getGeminiClient(); // this creates the Gemini API client
   const model = getGeminiModel(); // this reads the configured Gemini model name
 
-  const response = await client.models.generateContent({ // this makes the actual call to Gemini
+  const response = await generateGeminiContent(client, { // this makes the actual call to Gemini, retrying once if it's a transient overload error
     model, // this is which Gemini model to use
     contents: [{ role: "user", parts: [{ text: buildUserMessage(context) }] }], // this is the real-data prompt built above, sent as the user turn
     config: {
