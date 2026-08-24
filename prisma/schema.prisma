@@ -141,3 +141,15 @@ model Report {
 
   @@index([userId, type, generatedAt])
 }
+
+// Caches the (small, already-extracted) earnings history per ticker so report
+// generation never re-downloads SEC's raw company-facts file (5-8MB for large
+// companies) on every run. Next.js's built-in fetch cache silently refuses to
+// cache anything over 2MB, so without this table that download happened fresh
+// every single time and eventually pushed report generation past the
+// function's time limit, causing report generation to fail silently.
+model SecFactsCache {
+  ticker    String   @id
+  json      String // JSON-stringified EarningsHistory
+  fetchedAt DateTime @default(now())
+}

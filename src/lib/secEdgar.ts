@@ -5,8 +5,15 @@
  * proposed sales) per ticker. SEC's fair-access policy requires a
  * descriptive User-Agent identifying the app, not a browser UA string.
  */
+import { prisma } from "@/lib/prisma";
+
 const SEC_USER_AGENT = "PortfolioWatcher (personal project; contact: aayushp1123@gmail.com)";
 const REVALIDATE_SECONDS = 3600;
+// Full SEC company-facts files run 5-8MB for large companies, well over
+// Next.js's built-in fetch-cache 2MB limit (it silently no-ops above that),
+// so this file's own extracted-result cache is the only thing that actually
+// avoids re-downloading those multi-MB files on every report run.
+const EARNINGS_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 export interface SecFiling {
   ticker: string;
@@ -240,6 +247,11 @@ function computeTrend(values: Array<number | null>): "improving" | "worsening" |
  * app has no free source for analyst estimates, so it only reports the real
  * reported growth trend, which is what it can actually verify. */
 export async function getEarningsHistory(ticker: string, years = 8): Promise<EarningsHistory | null> {
+  const cached = await prisma.secFactsCache.findUnique({ where: { ticker } }).catch(() => null);
+  if (cached && Date.now() - cached.fetchedAt.getTime() < EARNINGS_CACHE_TTL_MS) {
+    return JSON.parse(cached.json) as EarningsHistory;
+  }
+
   const cikMap = await getCikMap();
   const cik = cikMap.get(ticker.toUpperCase());
   if (!cik) return null;
@@ -299,7 +311,7 @@ export async function getEarningsHistory(ticker: string, years = 8): Promise<Ear
     const latestWithRatio = [...points].reverse().find((p) => p.totalAssets != null && p.totalLiabilities != null);
     const latestWithCash = [...points].reverse().find((p) => p.cashAndEquivalents != null);
 
-    return {
+    const result: EarningsHistory = {
       ticker,
       points,
       revenueTrend: computeTrend(points.map((p) => p.revenue)),
@@ -311,6 +323,16 @@ export async function getEarningsHistory(ticker: string, years = 8): Promise<Ear
           : null,
       latestCashPosition: latestWithCash?.cashAndEquivalents ?? null,
     };
+
+    await prisma.secFactsCache
+      .upsert({
+        where: { ticker },
+        create: { ticker, json: JSON.stringify(result) },
+        update: { json: JSON.stringify(result), fetchedAt: new Date() },
+      })
+      .catch(() => {});
+
+    return result;
   } catch {
     return null;
   }
