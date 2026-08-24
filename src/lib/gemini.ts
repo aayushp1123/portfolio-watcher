@@ -97,10 +97,7 @@ export async function generateReportContent<T>({
     if (!isGroqConfigured()) throw err;
     console.error("Gemini report generation failed, falling back to Groq", err);
 
-    const text = await generateGroqJson(
-      `${systemPrompt}\n\nReturn ONLY a single JSON object matching this schema: ${JSON.stringify(toJsonSchema(schema))}`,
-      userMessage
-    );
+    const text = await generateGroqJson(systemPrompt, userMessage, toJsonSchema(schema));
     return {
       report: schema.parse(JSON.parse(text)),
       model: `groq:${getGroqModel()}`,

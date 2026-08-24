@@ -14,10 +14,19 @@ export function getGroqModel(): string {
   return process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 }
 
-/** Sends a system+user prompt pair to Groq and returns the raw JSON text
- * response. Throws on any failure (network, non-2xx, missing content) --
- * callers are expected to catch and fall back to Gemini. */
-export async function generateGroqJson(systemPrompt: string, userMessage: string): Promise<string> {
+/** Sends a system+user prompt pair to Groq, constrained to the given JSON
+ * Schema via Groq's strict structured-output mode (the same guarantee
+ * Gemini's responseJsonSchema gives -- the model literally cannot omit a
+ * required field or invent an extra one), and returns the raw JSON text
+ * response. A plain "match this schema" instruction in the prompt text was
+ * tried first and unreliably dropped required fields on larger schemas;
+ * strict mode does not. Throws on any failure (network, non-2xx, missing
+ * content) -- callers are expected to catch and fall back to Gemini. */
+export async function generateGroqJson(
+  systemPrompt: string,
+  userMessage: string,
+  jsonSchema: Record<string, unknown>
+): Promise<string> {
   if (!isGroqConfigured()) {
     throw new Error("Groq API key is not configured");
   }
@@ -34,7 +43,10 @@ export async function generateGroqJson(systemPrompt: string, userMessage: string
         { role: "system", content: systemPrompt },
         { role: "user", content: userMessage },
       ],
-      response_format: { type: "json_object" },
+      response_format: {
+        type: "json_schema",
+        json_schema: { name: "report", schema: jsonSchema, strict: true },
+      },
     }),
     signal: AbortSignal.timeout(30000),
   });
