@@ -35,18 +35,28 @@ export function getGeminiModel(): string {
   return process.env.GEMINI_MODEL || "gemini-flash-latest";
 }
 
-/** Thin wrapper around client.models.generateContent that retries exactly
- * once, after a short delay, when Gemini fails with a transient overload
- * error rather than a real problem with the request itself -- so a report
- * doesn't silently fail for an entire scheduled run just because Gemini was
- * briefly overloaded at the exact moment this one call happened to fire. */
+// Gemini's free tier has had a genuinely rough demand-spike streak (observed
+// live, repeatedly, on 2026-08-24) where a single 3-second retry wasn't
+// always enough to clear it. Backing off longer and retrying a couple more
+// times costs nothing but a little wall-clock time (well inside this
+// function's 300s budget) and doesn't touch any external quota the way a
+// Groq fallback does, so it's the more reliable backstop for a sustained
+// spike rather than just a single blip.
+const OVERLOAD_RETRY_DELAYS_MS = [3000, 6000, 12000];
+
+/** Thin wrapper around client.models.generateContent that retries after a
+ * short, increasing delay when Gemini fails with a transient overload error
+ * rather than a real problem with the request itself -- so a report doesn't
+ * silently fail for an entire scheduled run just because Gemini was briefly
+ * (or not so briefly) overloaded at the exact moment this call fired. */
 export async function generateGeminiContent(client: GoogleGenAI, params: GenerateContentParams) {
-  try {
-    return await client.models.generateContent(params);
-  } catch (err) {
-    if (!isTransientOverloadError(err)) throw err;
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-    return await client.models.generateContent(params);
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await client.models.generateContent(params);
+    } catch (err) {
+      if (!isTransientOverloadError(err) || attempt >= OVERLOAD_RETRY_DELAYS_MS.length) throw err;
+      await new Promise((resolve) => setTimeout(resolve, OVERLOAD_RETRY_DELAYS_MS[attempt]));
+    }
   }
 }
 
