@@ -1,4 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
+import type { z } from "zod";
+import { toJsonSchema } from "@/lib/reports/schemas";
+import { isGroqConfigured, generateGroqJson, getGroqModel } from "@/lib/groq";
 
 type GenerateContentParams = Parameters<GoogleGenAI["models"]["generateContent"]>[0];
 
@@ -44,5 +47,65 @@ export async function generateGeminiContent(client: GoogleGenAI, params: Generat
     if (!isTransientOverloadError(err)) throw err;
     await new Promise((resolve) => setTimeout(resolve, 3000));
     return await client.models.generateContent(params);
+  }
+}
+
+/**
+ * Shared entry point every report generator (Daily Digest, Weekly Trends,
+ * Breaking News) calls to get one AI-written, schema-validated report.
+ * Gemini is always tried first, so report quality/structure/rules are
+ * unchanged from normal operation -- Groq only steps in if Gemini fails
+ * entirely (already-retried transient overload, quota exhaustion, or any
+ * other error), using the exact same system prompt, user prompt, and Zod
+ * schema, so a fallback report still follows every rule the primary engine
+ * would have. No-ops back to a thrown error if GROQ_API_KEY isn't set,
+ * same as before this fallback existed.
+ */
+export async function generateReportContent<T>({
+  schema,
+  systemPrompt,
+  userMessage,
+}: {
+  schema: z.ZodType<T>;
+  systemPrompt: string;
+  userMessage: string;
+}): Promise<{ report: T; model: string; inputTokens: number | null; outputTokens: number | null }> {
+  try {
+    const client = getGeminiClient();
+    const model = getGeminiModel();
+    const response = await generateGeminiContent(client, {
+      model,
+      contents: [{ role: "user", parts: [{ text: userMessage }] }],
+      config: {
+        systemInstruction: systemPrompt,
+        responseMimeType: "application/json",
+        responseJsonSchema: toJsonSchema(schema),
+        thinkingConfig: { thinkingBudget: -1 },
+      },
+    });
+
+    const text = response.text;
+    if (!text) throw new Error("No text content in Gemini response");
+
+    return {
+      report: schema.parse(JSON.parse(text)),
+      model,
+      inputTokens: response.usageMetadata?.promptTokenCount ?? null,
+      outputTokens: response.usageMetadata?.candidatesTokenCount ?? null,
+    };
+  } catch (err) {
+    if (!isGroqConfigured()) throw err;
+    console.error("Gemini report generation failed, falling back to Groq", err);
+
+    const text = await generateGroqJson(
+      `${systemPrompt}\n\nReturn ONLY a single JSON object matching this schema: ${JSON.stringify(toJsonSchema(schema))}`,
+      userMessage
+    );
+    return {
+      report: schema.parse(JSON.parse(text)),
+      model: `groq:${getGroqModel()}`,
+      inputTokens: null,
+      outputTokens: null,
+    };
   }
 }

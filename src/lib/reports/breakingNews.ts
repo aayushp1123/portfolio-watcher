@@ -1,11 +1,10 @@
 // ============================================================================
 // IMPORTS
 // ============================================================================
-import { getGeminiClient, getGeminiModel, generateGeminiContent } from "@/lib/gemini"; // this brings in the Gemini client factory, the configured model name, and the retry-wrapped generation call
-import { isGroqConfigured, generateGroqJson, getGroqModel } from "@/lib/groq"; // this brings in the optional Groq engine's config check, JSON call, and model name
+import { generateReportContent } from "@/lib/gemini"; // this brings in the shared Gemini-first/Groq-fallback report generator
 import { prisma } from "@/lib/prisma"; // this brings in the shared database client used to read the prior report and save the finished one
 import { buildUserContext, type SharedMarketContext } from "@/lib/reports/buildContext"; // this brings in the function that assembles all the real data for one user
-import { breakingNewsSchema, toJsonSchema, type BreakingNews } from "@/lib/reports/schemas"; // this brings in the Zod schema, its JSON-Schema converter, and the inferred TypeScript type
+import { breakingNewsSchema, type BreakingNews } from "@/lib/reports/schemas"; // this brings in the Zod schema and the inferred TypeScript type
 
 // ============================================================================
 // CONSTANTS — the fixed thresholds that decide what counts as a "breaking" event
@@ -158,59 +157,6 @@ ${maCrossoverText}
 Return the structured JSON per the schema and system instructions.`;
 }
 
-// ============================================================================
-// FUNCTION: generateBreakingNewsContent — calls Groq first (if configured), falls back to Gemini
-// ============================================================================
-/** Pilot: Breaking News tries Groq first (free tier, much higher headroom
- * than Gemini's shared 20-req/day quota) and falls back to Gemini on any
- * failure -- network error, non-2xx, or output that fails the same Zod
- * schema Gemini's output is validated against. Gemini remains the only
- * required engine; this is purely additive. */
-async function generateBreakingNewsContent(
-  userMessage: string // this is the already-built prompt text containing every detected real event
-): Promise<{ report: BreakingNews; model: string; inputTokens: number | null; outputTokens: number | null }> { // this defines the function that actually calls an AI engine and returns a validated report
-  if (isGroqConfigured()) { // this checks whether a real Groq API key is set at all
-    try {
-      const text = await generateGroqJson(
-        `${SYSTEM_PROMPT}\n\nReturn ONLY a single JSON object matching this schema: ${JSON.stringify(toJsonSchema(breakingNewsSchema))}`, // this appends the JSON schema to the system prompt since Groq's plain chat API has no dedicated schema parameter like Gemini's
-        userMessage // this is the same real-event prompt text Gemini would also receive
-      );
-      const parsed = breakingNewsSchema.safeParse(JSON.parse(text)); // this validates Groq's raw JSON output against the real schema without throwing on failure
-      if (parsed.success) { // this checks whether Groq's output actually matched the schema
-        return { report: parsed.data, model: `groq:${getGroqModel()}`, inputTokens: null, outputTokens: null }; // this returns the Groq-generated report, tagging which exact model produced it (Groq doesn't report token usage the same way, so those are left null)
-      }
-      console.error("Groq breaking-news output failed schema validation, falling back to Gemini", parsed.error); // this logs the schema mismatch before falling through to Gemini
-    } catch (err) {
-      console.error("Groq breaking-news generation failed, falling back to Gemini", err); // this logs any network/API failure before falling through to Gemini
-    }
-  }
-
-  const client = getGeminiClient(); // this creates the Gemini API client, used either as the only engine or as the fallback
-  const geminiModel = getGeminiModel(); // this reads the configured Gemini model name
-
-  const response = await generateGeminiContent(client, { // this makes the actual call to Gemini, retrying once if it's a transient overload error
-    model: geminiModel, // this is which Gemini model to use
-    contents: [{ role: "user", parts: [{ text: userMessage }] }], // this is the same real-event prompt text, sent as the user turn
-    config: {
-      systemInstruction: SYSTEM_PROMPT, // this is the fixed instructions defined above, sent as the system turn
-      responseMimeType: "application/json", // this tells Gemini to return raw JSON
-      responseJsonSchema: toJsonSchema(breakingNewsSchema), // this tells Gemini the exact JSON shape it must return
-      thinkingConfig: { thinkingBudget: -1 }, // this lets Gemini use its own default/unlimited internal reasoning budget
-    },
-  });
-
-  const text = response.text; // this pulls the raw JSON text out of Gemini's response
-  if (!text) { // this checks whether Gemini actually returned any text
-    throw new Error("No text content in Gemini response"); // this fails loudly rather than silently producing an empty report
-  }
-
-  return {
-    report: breakingNewsSchema.parse(JSON.parse(text)), // this parses and validates Gemini's output against the real schema, throwing if it doesn't match
-    model: geminiModel, // this records which Gemini model actually produced the report
-    inputTokens: response.usageMetadata?.promptTokenCount ?? null, // this records the real prompt token count for cost/usage tracking
-    outputTokens: response.usageMetadata?.candidatesTokenCount ?? null, // this records the real output token count for cost/usage tracking
-  };
-}
 
 // ============================================================================
 // FUNCTION: generateBreakingNews — the entry point one cron/manual call uses to detect and report events for one user
@@ -327,7 +273,11 @@ export async function generateBreakingNews(
 
   const userMessage = buildUserMessage(context, confirmedMoves, freshHeadlines, freshFilings, nearFiftyTwoWeek, maCrossovers); // this builds the final prompt text from every real event detected above, each one tagged with its real event key
 
-  const { report, model, inputTokens, outputTokens } = await generateBreakingNewsContent(userMessage); // this actually calls Groq (if configured) or Gemini to write the alerts
+  const { report, model, inputTokens, outputTokens } = await generateReportContent({ // this calls Gemini (retrying once on transient overload), falling back to Groq only if Gemini fails entirely
+    schema: breakingNewsSchema, // this is the real schema both engines' output is validated against
+    systemPrompt: SYSTEM_PROMPT, // this is the fixed instructions defined above
+    userMessage, // this is the real-event prompt built above
+  });
 
   // Deterministic, not model-trusted — hasMaterialEvents follows the real detected signals.
   report.hasMaterialEvents =

@@ -1,10 +1,10 @@
 // ============================================================================
 // IMPORTS
 // ============================================================================
-import { getGeminiClient, getGeminiModel, generateGeminiContent } from "@/lib/gemini"; // this brings in the Gemini client factory, the configured model name, and the retry-wrapped generation call
+import { generateReportContent } from "@/lib/gemini"; // this brings in the shared Gemini-first/Groq-fallback report generator
 import { prisma } from "@/lib/prisma"; // this brings in the shared database client used to save the finished report
 import { buildUserContext, type SharedMarketContext } from "@/lib/reports/buildContext"; // this brings in the function that assembles all the real data for one user
-import { weeklyTrendsSchema, toJsonSchema, type WeeklyTrends } from "@/lib/reports/schemas"; // this brings in the Zod schema, its JSON-Schema converter, and the inferred TypeScript type
+import { weeklyTrendsSchema, type WeeklyTrends } from "@/lib/reports/schemas"; // this brings in the Zod schema and the inferred TypeScript type
 import { computeTrailingPE } from "@/lib/riskMetrics"; // this brings in the pure-math trailing P/E calculator used while formatting earnings history
 
 // ============================================================================
@@ -296,26 +296,11 @@ export async function generateWeeklyTrends(
     return { skipped: true, reason: "Connect a brokerage account, add a watchlist ticker, or set your goals first." }; // this skips generation entirely rather than asking the AI to write about nothing
   }
 
-  const client = getGeminiClient(); // this creates the Gemini API client
-  const model = getGeminiModel(); // this reads the configured Gemini model name
-
-  const response = await generateGeminiContent(client, { // this makes the actual call to Gemini, retrying once if it's a transient overload error
-    model, // this is which Gemini model to use
-    contents: [{ role: "user", parts: [{ text: buildUserMessage(context) }] }], // this is the real-data prompt built above, sent as the user turn
-    config: {
-      systemInstruction: SYSTEM_PROMPT, // this is the fixed instructions defined above, sent as the system turn
-      responseMimeType: "application/json", // this tells Gemini to return raw JSON
-      responseJsonSchema: toJsonSchema(weeklyTrendsSchema), // this tells Gemini the exact JSON shape it must return
-      thinkingConfig: { thinkingBudget: -1 }, // this lets Gemini use its own default/unlimited internal reasoning budget
-    },
+  const { report, model, inputTokens, outputTokens } = await generateReportContent({ // this calls Gemini (retrying once on transient overload), falling back to Groq only if Gemini fails entirely
+    schema: weeklyTrendsSchema, // this is the real schema both engines' output is validated against
+    systemPrompt: SYSTEM_PROMPT, // this is the fixed instructions defined above
+    userMessage: buildUserMessage(context), // this is the real-data prompt built above
   });
-
-  const text = response.text; // this pulls the raw JSON text out of Gemini's response
-  if (!text) { // this checks whether Gemini actually returned any text
-    throw new Error("No text content in Gemini response"); // this fails loudly rather than silently producing an empty report
-  }
-
-  const report = weeklyTrendsSchema.parse(JSON.parse(text)); // this parses the raw JSON and validates it against the real schema, throwing if Gemini's output doesn't match
   // Deterministic, not model-trusted — the model can misjudge this from prose alone.
   report.hasBrokerageConnection = context.hasBrokerageConnection; // this overwrites the model's own guess with the real connection status
 
@@ -349,9 +334,9 @@ export async function generateWeeklyTrends(
       type: "WEEKLY_TRENDS", // this is the report kind being saved
       schemaVersion: 3, // this is the schema version this report was generated under
       content: JSON.stringify(report), // this is the full report, serialized to JSON for storage
-      model, // this is which AI model actually generated it
-      inputTokens: response.usageMetadata?.promptTokenCount ?? null, // this records the real prompt token count for cost/usage tracking
-      outputTokens: response.usageMetadata?.candidatesTokenCount ?? null, // this records the real output token count for cost/usage tracking
+      model, // this is which AI engine actually generated it (Gemini or a Groq fallback model)
+      inputTokens, // this records the real prompt token count for cost/usage tracking (null for a Groq fallback)
+      outputTokens, // this records the real output token count for cost/usage tracking (null for a Groq fallback)
     },
   });
 
