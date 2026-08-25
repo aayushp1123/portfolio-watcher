@@ -70,12 +70,14 @@ const GEMINI_CALL_TIMEOUT_MS = 200000;
  * (or not so briefly) overloaded at the exact moment this call fired. */
 export async function generateGeminiContent(client: GoogleGenAI, params: GenerateContentParams) {
   for (let attempt = 0; ; attempt++) {
+    const startedAt = Date.now(); // temporary instrumentation -- pins down exactly how long the call ran before an abort, since raising the timeout from 60s to 200s changed nothing about the failure
     try {
       return await client.models.generateContent({
         ...params,
         config: { ...params.config, abortSignal: AbortSignal.timeout(GEMINI_CALL_TIMEOUT_MS) },
       });
     } catch (err) {
+      console.error(`[gemini] call failed after ${Date.now() - startedAt}ms (attempt ${attempt}):`, err instanceof Error ? err.name : err);
       if (err instanceof Error && err.name === "TimeoutError") throw err;
       if (!isTransientOverloadError(err) || attempt >= OVERLOAD_RETRY_DELAYS_MS.length) throw err;
       await new Promise((resolve) => setTimeout(resolve, OVERLOAD_RETRY_DELAYS_MS[attempt]));
