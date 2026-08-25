@@ -46,16 +46,22 @@ const OVERLOAD_RETRY_DELAYS_MS = [3000, 6000, 12000];
 
 // No call to Gemini should be able to eat the whole route's 300s budget by
 // itself -- unlike every other external fetch in this codebase, this call
-// had no timeout at all, so a single slow/hung response (e.g. the model
-// spending an unusually long time on its unbounded `thinkingBudget: -1`
-// reasoning) could silently run out the entire function and get killed by
-// Vercel with a bare 504, instead of failing fast into the retry/Groq-
-// fallback path below like a normal error would. A timeout here is NOT
-// retried the way a 503 overload is -- retrying the exact same slow request
-// is unlikely to suddenly get faster, and doing it 3 more times at up to
-// GEMINI_CALL_TIMEOUT_MS each would itself risk exhausting the 300s budget.
-// Failing fast instead leaves real time for the Groq fallback below.
-const GEMINI_CALL_TIMEOUT_MS = 60000;
+// had no timeout at all, so a single slow/hung response could silently run
+// out the entire function and get killed by Vercel with a bare 504, instead
+// of failing into the retry/Groq-fallback path below like a normal error
+// would. A timeout here is NOT retried the way a 503 overload is -- retrying
+// the exact same slow request is unlikely to suddenly get faster.
+//
+// Set generously (not tightly) on purpose: confirmed live on 2026-08-25 that
+// Daily Digest/Weekly Trends' large real prompts (~10-11k tokens) can
+// genuinely take Gemini longer than a short timeout to finish -- and Groq
+// can't rescue either of those two report types anyway (its 8,000
+// tokens/minute ceiling rejects a prompt that size outright, confirmed live
+// the same day). A short timeout there only aborts a call that would have
+// succeeded, with no usable fallback behind it. 200s leaves real margin
+// under the 300s route budget for buildContext's own fetching plus a Groq
+// attempt (which Breaking News's much smaller prompt can actually use).
+const GEMINI_CALL_TIMEOUT_MS = 200000;
 
 /** Thin wrapper around client.models.generateContent that retries after a
  * short, increasing delay when Gemini fails with a transient overload error
