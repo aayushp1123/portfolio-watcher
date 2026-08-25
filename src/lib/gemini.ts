@@ -44,6 +44,19 @@ export function getGeminiModel(): string {
 // spike rather than just a single blip.
 const OVERLOAD_RETRY_DELAYS_MS = [3000, 6000, 12000];
 
+// No call to Gemini should be able to eat the whole route's 300s budget by
+// itself -- unlike every other external fetch in this codebase, this call
+// had no timeout at all, so a single slow/hung response (e.g. the model
+// spending an unusually long time on its unbounded `thinkingBudget: -1`
+// reasoning) could silently run out the entire function and get killed by
+// Vercel with a bare 504, instead of failing fast into the retry/Groq-
+// fallback path below like a normal error would. A timeout here is NOT
+// retried the way a 503 overload is -- retrying the exact same slow request
+// is unlikely to suddenly get faster, and doing it 3 more times at up to
+// GEMINI_CALL_TIMEOUT_MS each would itself risk exhausting the 300s budget.
+// Failing fast instead leaves real time for the Groq fallback below.
+const GEMINI_CALL_TIMEOUT_MS = 60000;
+
 /** Thin wrapper around client.models.generateContent that retries after a
  * short, increasing delay when Gemini fails with a transient overload error
  * rather than a real problem with the request itself -- so a report doesn't
@@ -52,8 +65,12 @@ const OVERLOAD_RETRY_DELAYS_MS = [3000, 6000, 12000];
 export async function generateGeminiContent(client: GoogleGenAI, params: GenerateContentParams) {
   for (let attempt = 0; ; attempt++) {
     try {
-      return await client.models.generateContent(params);
+      return await client.models.generateContent({
+        ...params,
+        config: { ...params.config, abortSignal: AbortSignal.timeout(GEMINI_CALL_TIMEOUT_MS) },
+      });
     } catch (err) {
+      if (err instanceof Error && err.name === "TimeoutError") throw err;
       if (!isTransientOverloadError(err) || attempt >= OVERLOAD_RETRY_DELAYS_MS.length) throw err;
       await new Promise((resolve) => setTimeout(resolve, OVERLOAD_RETRY_DELAYS_MS[attempt]));
     }
